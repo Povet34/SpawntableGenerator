@@ -18,7 +18,7 @@ MonoBehaviour:
   cooldown: 0.45
   meleeRadius: 4.5
   meleeArcDeg: 120
-  slashVfxPrefab: {fileID: 1872147318604286, guid: 5bea49531fc500c408823a2e2863106f, type: 3}
+  slashVfxPrefab: {fileID: 0}
   projectileSpeed: 45
   projectileRange: 35
   projectileColor: {r: 4, g: 0.6, b: 0.4, a: 1}
