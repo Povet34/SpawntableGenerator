@@ -1,0 +1,17 @@
+{
+    "name": "SpawnSystem",
+    "rootNamespace": "SpawnSystem",
+    "references": [
+        "Unity.AI.Navigation",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

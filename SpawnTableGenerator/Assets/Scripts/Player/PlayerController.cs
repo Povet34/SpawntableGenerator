@@ -63,17 +63,9 @@ namespace SpawnSystem.Player
             Vector3 clicked;
             if (Physics.Raycast(ray, out RaycastHit physHit, 500f))
             {
-                clicked = physHit.point;
-
-                // 카메라가 기울어져 있어 벽의 '수직 옆면'을 찍는 경우가 잦다.
-                // 법선이 거의 수평(수직면)이면 → 그 면의 바닥 지점으로 내리고, 법선 바깥쪽
-                // (걸을 수 있는 쪽)으로 에이전트 반경만큼 밀어 그 벽면에 밀착시킨다.
-                if (Mathf.Abs(physHit.normal.y) < 0.5f)
-                {
-                    Vector3 outward = new Vector3(physHit.normal.x, 0f, physHit.normal.z).normalized;
-                    clicked = new Vector3(physHit.point.x, groundHeight, physHit.point.z)
-                              + outward * (_agent.radius + 0.1f);
-                }
+                // 순수 로직(MovementResolver)으로 위임 — 수직 벽면이면 바닥 투영 + 법선 밀기로 밀착.
+                clicked = MovementResolver.ResolveClickTarget(
+                    physHit.point, physHit.normal, groundHeight, _agent.radius + 0.1f);
             }
             else
             {
