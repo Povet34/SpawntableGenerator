@@ -1,0 +1,22 @@
+{
+    "name": "SpawnSystem.Tests.PlayMode",
+    "rootNamespace": "SpawnSystem.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "SpawnSystem",
+        "Unity.AI.Navigation"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
