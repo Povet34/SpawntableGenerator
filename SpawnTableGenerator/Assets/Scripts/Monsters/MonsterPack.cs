@@ -47,6 +47,8 @@ namespace SpawnSystem.Monsters
 
         Vector3 _knownPlayerPos;
         Vector3 _lastStimulus;
+        Vector3 _lastPlayerAttackDir;
+        float _lastPlayerAttackAge = 999f;
         Vector3 _patrolTarget;
         Vector3 _patrolDir;
         bool _patrolInit;
@@ -83,6 +85,13 @@ namespace SpawnSystem.Monsters
         {
             if (anchorAgent != null && anchorAgent.isOnNavMesh)
                 anchorAgent.SetDestination(worldPos);
+        }
+
+        /// <summary>플레이어 공격 방향 갱신 — ViewPressure 의 lastAttackDir 에 반영.</summary>
+        public void NotifyPlayerAttack(Vector3 dir)
+        {
+            _lastPlayerAttackDir = dir;
+            _lastPlayerAttackAge = 0f;
         }
 
         /// <summary>소음 자극 입력(플레이어 고속 이동/공격 등). 다음 인지 틱에서 경계 트리거.</summary>
@@ -263,9 +272,10 @@ namespace SpawnSystem.Monsters
                 playerForward = Vector3.zero;
             }
 
+            _lastPlayerAttackAge += dt;
             var ctx = new SteerContext(
                 playerPos, playerForward,
-                Vector3.zero, 999f,            // 직전 공격 — 공격 시스템(후속) 연결 전엔 없음
+                _lastPlayerAttackDir, _lastPlayerAttackAge,
                 AnchorPosition,
                 EnsureProfile(),
                 memberMoveSpeed, preferredRange, engageRange, dirCount);

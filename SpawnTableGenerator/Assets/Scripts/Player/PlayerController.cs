@@ -29,13 +29,28 @@ namespace SpawnSystem.Player
         Vector3 _destination;
         bool _hasDestination;
 
+        // 넉백
+        Vector3 _knockback;
+        const float KnockbackDecay = 8f;
+
+        // 수동 회전 (공격 시 snap, 그 외 이동방향)
+        Vector3 _overrideRotDir;
+        float _overrideTimer;
+
         readonly Plane _groundPlane = new Plane(Vector3.up, Vector3.zero);
 
         void Awake()
         {
             _agent = GetComponent<NavMeshAgent>();
+            _agent.updateRotation = false; // 회전 직접 제어
             _camera = Camera.main;
         }
+
+        /// <summary>근접/폭발 피격 시 방향 충격량 추가 (MonsterAttack, LaserProjectile 에서 호출).</summary>
+        public void AddKnockback(Vector3 impulse) => _knockback += impulse;
+
+        /// <summary>공격 시 잠깐 해당 방향을 바라보도록 오버라이드 (PlayerCombat 에서 호출).</summary>
+        public void OverrideRotation(Vector3 dir) { _overrideRotDir = dir; _overrideTimer = 0.3f; }
 
         void Update()
         {
@@ -50,8 +65,23 @@ namespace SpawnSystem.Player
             if (mouse.rightButton.isPressed)
                 TryMoveToCursor(mouse.position.ReadValue());
 
-            // 좌클릭 = 공격 (미구현). 추후 여기에서 공격 입력을 처리.
-            // if (mouse.leftButton.wasPressedThisFrame) TryAttackAtCursor(mouse.position.ReadValue());
+            // 넉백 적용
+            if (_knockback.sqrMagnitude > 0.001f)
+            {
+                _agent.Move(_knockback * Time.deltaTime);
+                _knockback = Vector3.Lerp(_knockback, Vector3.zero, KnockbackDecay * Time.deltaTime);
+            }
+
+            // 회전 처리
+            _overrideTimer -= Time.deltaTime;
+            Vector3 vel = _agent.velocity;
+            vel.y = 0f;
+            if (_overrideTimer > 0f && _overrideRotDir.sqrMagnitude > 1e-4f)
+                transform.rotation = Quaternion.LookRotation(_overrideRotDir);
+            else if (vel.sqrMagnitude > 0.05f)
+                transform.rotation = Quaternion.Slerp(transform.rotation,
+                                                      Quaternion.LookRotation(vel.normalized),
+                                                      Time.deltaTime * 12f);
         }
 
         void TryMoveToCursor(Vector2 screenPos)

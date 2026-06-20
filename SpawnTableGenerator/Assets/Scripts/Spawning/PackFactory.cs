@@ -24,8 +24,9 @@ namespace SpawnSystem.Spawning
             PrimitiveType body = def != null ? def.bodyPrimitive : PrimitiveType.Capsule;
             float maxHP = def != null ? def.maxHP : 10f;
             DefenseProfile defense = def != null ? def.defense : null;
+            AttackProfile attack = def != null ? def.attack : null;
 
-            return Build(parent, center, count, diameter, color, speed, preferredRange, profile, player, pool, body, maxHP, defense);
+            return Build(parent, center, count, diameter, color, speed, preferredRange, profile, player, pool, body, maxHP, defense, attack: attack);
         }
 
         public static MonsterPack Build(
@@ -34,7 +35,8 @@ namespace SpawnSystem.Spawning
             MovementProfile profile, Transform player, MonsterPool pool = null,
             PrimitiveType bodyPrimitive = PrimitiveType.Capsule,
             float maxHP = 10f, DefenseProfile defense = null,
-            float spawnRadius = 3f, float anchorSpeed = 3.5f)
+            float spawnRadius = 3f, float anchorSpeed = 3.5f,
+            AttackProfile attack = null)
         {
             Vector3 anchorPos = Snap(center, 12f);
 
@@ -80,6 +82,13 @@ namespace SpawnSystem.Spawning
                     m = CreateMemberNonPooled(packGo.transform, mpos, i, bodyPrimitive, memberDiameter, moveSpeed, mat, maxHP, defense);
                 }
                 pack.RegisterMember(m);
+
+                // 공격 프로필이 있으면 MonsterAttack 부착
+                if (attack != null && attack.attacks != null && attack.attacks.Length > 0)
+                {
+                    var ma = m.gameObject.AddComponent<Combat.MonsterAttack>();
+                    ma.Init(attack, player);
+                }
             }
             return pack;
         }

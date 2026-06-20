@@ -6,83 +6,92 @@ using UnityEngine.InputSystem;
 namespace SpawnSystem.Combat
 {
     /// <summary>
-    /// 플레이어 공격(스타워즈 빔 느낌). 1키 = 광선검 범위 근접(관통 데미지 + 발광 링),
-    /// 2키 = 블래스터 히트스캔(커서 조준, LineRenderer 빔, 첫 몬스터에 데미지). 발광은 Bloom + 빔 셰이더.
+    /// 플레이어 전투 (스타워즈 빔 느낌). WeaponSO 기반.
+    /// 1키 = 광선검 부채꼴 근접(120°, 왼→오 스윕, Hovl 슬래시 VFX).
+    /// 2키 = 블래스터 레이저 투사체(커서 조준, 캐릭터 순간 회전).
+    /// 공격 시 캐릭터가 커서 방향으로 즉시 전향.
     /// </summary>
     public class PlayerCombat : MonoBehaviour
     {
-        [Header("근접 (1) — 광선검")]
-        public float meleeRadius = 4.5f;
-        public float meleeDamage = 40f;
-        public DamageType meleeDamageType = DamageType.Piercing; // 광선검 = 장갑 관통
-        public Color meleeColor = new Color(0.25f, 1f, 0.45f);
+        [Header("무기 SO (Inspector에서 할당)")]
+        public WeaponSO meleeWeapon;
+        public WeaponSO rangedWeapon;
 
-        [Header("원거리 (2) — 블래스터 히트스캔")]
-        public float rangedRange = 35f;
-        public float rangedDamage = 14f;
-        public DamageType rangedDamageType = DamageType.Normal;
-        public Color rangedColor = new Color(1f, 0.3f, 0.2f);
+        float _meleeCd;
+        float _rangedCd;
 
         Camera _cam;
-        LineRenderer _beam;
-        float _beamTimer;
-        Transform _ring;
-        float _ringTimer;
         readonly List<Vector3> _posBuf = new List<Vector3>();
         readonly List<Monster> _monBuf = new List<Monster>();
+
+        Player.PlayerController _ctrl;
 
         void Awake()
         {
             _cam = Camera.main;
-            BuildBeam();
-            BuildRing();
+            _ctrl = GetComponent<Player.PlayerController>();
+            // 런타임에 WeaponSO 미할당 시 기본값
+            if (meleeWeapon == null) meleeWeapon = MakeDefaultMelee();
+            if (rangedWeapon == null) rangedWeapon = MakeDefaultRanged();
         }
 
         void Update()
         {
             if (_cam == null) _cam = Camera.main;
+            _meleeCd -= Time.deltaTime;
+            _rangedCd -= Time.deltaTime;
+
             var kb = Keyboard.current;
-            if (kb != null)
-            {
-                if (kb.digit1Key.wasPressedThisFrame) FireMelee();
-                if (kb.digit2Key.wasPressedThisFrame) FireRanged();
-            }
-            TickVisuals(Time.deltaTime);
+            if (kb == null) return;
+            if (kb.digit1Key.wasPressedThisFrame && _meleeCd <= 0f) FireMelee();
+            if (kb.digit2Key.wasPressedThisFrame && _rangedCd <= 0f) FireRanged();
         }
 
-        /// <summary>광선검 휘두르기 — 반경 내 몬스터에 관통 데미지.</summary>
         public void FireMelee()
         {
+            Vector3 aimDir = AimDir();
+            FaceDir(aimDir);
+
+            // 부채꼴 데미지
             GatherMonsters();
-            var hits = AoeTargets.InRadius(transform.position, meleeRadius, _posBuf);
+            var hits = AoeTargets.InArc(transform.position, aimDir,
+                                         meleeWeapon.meleeRadius, meleeWeapon.meleeArcDeg, _posBuf);
             foreach (int i in hits)
             {
                 var h = _monBuf[i].Health;
-                if (h != null) h.TakeDamage(meleeDamage, meleeDamageType);
+                if (h != null) h.TakeDamage(meleeWeapon.damage, meleeWeapon.damageType);
             }
-            _ringTimer = 0.2f;
-        }
 
-        public void FireRanged() => FireRangedDir(AimDir());
+            // 부채꼴 VFX (빔 셰이더)
+            Color c = new Color(0.3f, 1f, 0.5f); // 연초록
+            MeleeArcVfx.Spawn(transform.position, aimDir,
+                               meleeWeapon.meleeRadius, meleeWeapon.meleeArcDeg, 0.22f, c);
 
-        /// <summary>블래스터 히트스캔 — dir 방향 첫 몬스터에 데미지 + 빔 표시.</summary>
-        public void FireRangedDir(Vector3 dir)
-        {
-            dir.y = 0f;
-            if (dir.sqrMagnitude < 1e-4f) dir = transform.forward;
-            dir.Normalize();
-
-            Vector3 origin = transform.position + Vector3.up * 1f + dir * 1.2f; // 자기 콜라이더 회피
-            Vector3 end = origin + dir * rangedRange;
-            if (Physics.Raycast(origin, dir, out var hit, rangedRange))
+            // Hovl Studio 슬래시 VFX (Inspector에서 SO에 할당됐을 때)
+            if (meleeWeapon.slashVfxPrefab != null)
             {
-                end = hit.point;
-                var m = hit.collider.GetComponentInParent<Monster>();
-                if (m != null && m.Health != null) m.Health.TakeDamage(rangedDamage, rangedDamageType);
+                var vgo = Object.Instantiate(meleeWeapon.slashVfxPrefab, transform.position,
+                                             Quaternion.LookRotation(aimDir));
+                Object.Destroy(vgo, 3f);
             }
-            ShowBeam(origin, end);
+
+            _meleeCd = meleeWeapon.cooldown;
+            NotifyViewPressure(aimDir);
         }
 
+        public void FireRanged()
+        {
+            Vector3 aimDir = AimDir();
+            FaceDir(aimDir);
+
+            Vector3 origin = transform.position + Vector3.up * 1.1f + aimDir * 1.2f;
+            LaserProjectile.Spawn(origin, aimDir, rangedWeapon, hitsPlayer: false);
+
+            _rangedCd = rangedWeapon.cooldown;
+            NotifyViewPressure(aimDir);
+        }
+
+        // 커서 → 지면 투영 조준 방향
         Vector3 AimDir()
         {
             if (_cam != null && Mouse.current != null)
@@ -99,6 +108,15 @@ namespace SpawnSystem.Combat
             return transform.forward;
         }
 
+        void FaceDir(Vector3 dir)
+        {
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 1e-4f) return;
+            transform.rotation = Quaternion.LookRotation(dir);
+            // PlayerController의 NavMeshAgent 수동 회전 모드에 알림
+            if (_ctrl != null) _ctrl.OverrideRotation(dir);
+        }
+
         void GatherMonsters()
         {
             _posBuf.Clear();
@@ -112,77 +130,37 @@ namespace SpawnSystem.Combat
             }
         }
 
-        // ---------- 비주얼 ----------
-
-        void BuildBeam()
+        // 몬스터가 플레이어의 시야압 계산에 사용할 마지막 공격 방향을 MonsterPack에 브로드캐스트
+        void NotifyViewPressure(Vector3 dir)
         {
-            var go = new GameObject("Beam");
-            go.transform.SetParent(transform, false);
-            _beam = go.AddComponent<LineRenderer>();
-            _beam.useWorldSpace = true;
-            _beam.positionCount = 2;
-            _beam.widthMultiplier = 0.18f;
-            _beam.numCapVertices = 4;
-            _beam.sharedMaterial = BeamMaterial(rangedColor, 6f);
-            _beam.enabled = false;
+            var packs = Object.FindObjectsByType<Monsters.MonsterPack>(FindObjectsSortMode.None);
+            foreach (var pk in packs)
+                pk.NotifyPlayerAttack(dir);
         }
 
-        void BuildRing()
+        static WeaponSO MakeDefaultMelee()
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            go.name = "MeleeRing";
-            go.transform.SetParent(transform, false);
-            var col = go.GetComponent<Collider>();
-            if (col != null) Destroy(col);
-            go.transform.localPosition = Vector3.zero;
-            go.transform.localScale = new Vector3(meleeRadius * 2f, 0.04f, meleeRadius * 2f);
-            var r = go.GetComponent<Renderer>();
-            if (r != null) r.sharedMaterial = BeamMaterial(meleeColor, 5f);
-            _ring = go.transform;
-            go.SetActive(false);
+            var w = ScriptableObject.CreateInstance<WeaponSO>();
+            w.kind = WeaponKind.Melee;
+            w.damage = 40f;
+            w.damageType = DamageType.Piercing;
+            w.cooldown = 0.45f;
+            w.meleeRadius = 4.5f;
+            w.meleeArcDeg = 120f;
+            return w;
         }
 
-        static Material BeamMaterial(Color c, float intensity)
+        static WeaponSO MakeDefaultRanged()
         {
-            var sh = Shader.Find("SpawnSystem/Beam");
-            var m = new Material(sh != null ? sh : Shader.Find("Universal Render Pipeline/Unlit"));
-            if (sh != null)
-            {
-                m.SetColor("_Color", c);
-                m.SetColor("_CoreColor", Color.Lerp(c, Color.white, 0.6f));
-                m.SetFloat("_Intensity", intensity);
-            }
-            else
-            {
-                m.color = c;
-            }
-            return m;
-        }
-
-        void ShowBeam(Vector3 a, Vector3 b)
-        {
-            _beam.SetPosition(0, a);
-            _beam.SetPosition(1, b);
-            _beam.enabled = true;
-            _beamTimer = 0.07f;
-        }
-
-        void TickVisuals(float dt)
-        {
-            if (_beamTimer > 0f)
-            {
-                _beamTimer -= dt;
-                if (_beamTimer <= 0f) _beam.enabled = false;
-            }
-            if (_ringTimer > 0f && _ring != null)
-            {
-                _ringTimer -= dt;
-                if (!_ring.gameObject.activeSelf) _ring.gameObject.SetActive(true);
-                float t = 1f - Mathf.Clamp01(_ringTimer / 0.2f);
-                float s = Mathf.Lerp(meleeRadius * 0.4f, meleeRadius * 2f, t);
-                _ring.localScale = new Vector3(s, 0.04f, s);
-                if (_ringTimer <= 0f) _ring.gameObject.SetActive(false);
-            }
+            var w = ScriptableObject.CreateInstance<WeaponSO>();
+            w.kind = WeaponKind.Ranged;
+            w.damage = 14f;
+            w.damageType = DamageType.Normal;
+            w.cooldown = 0.25f;
+            w.projectileSpeed = 45f;
+            w.projectileRange = 35f;
+            w.projectileColor = new Color(4f, 0.6f, 0.4f, 1f);
+            return w;
         }
     }
 }
