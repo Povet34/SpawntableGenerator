@@ -6,16 +6,20 @@ namespace SpawnSystem.Player
 {
     /// <summary>
     /// MOBA식 탑다운 조작. 마우스 우클릭 = 이동, 좌클릭 = 공격(미구현, 자리만 확보).
-    /// 우클릭 지점을 바닥 평면(y=0)에 투영해 NavMeshAgent 목적지로 설정하며,
-    /// 버튼을 꾹 누르고 있으면 매 프레임 커서 위치로 목적지를 갱신한다(홀드 추적).
+    /// 커서 아래 실제 지오메트리(Physics 레이)를 찍고, 그 지점에서 갈 수 있는 가장 가까운
+    /// NavMesh 위치를 목적지로 준다. 갈 수 있는 곳을 찍으면 NavMeshAgent가 벽/장애물을
+    /// 우회해서 가고, 못 가는 곳(벽 위 등)을 찍으면 가장 가까운 가장자리까지 가서 멈춘다.
+    /// 버튼을 꾹 누르고 있으면 매 프레임 목적지를 갱신한다(홀드 추적).
     /// 신형 Input System 전용(프로젝트 activeInputHandler = 1).
-    /// 높이/회전은 NavMeshAgent와 길찾기가 처리하므로 XZ 평면 이동만 다룬다.
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
     public class PlayerController : MonoBehaviour
     {
-        [Tooltip("클릭 레이를 투영할 바닥 높이 (월드 y)")]
+        [Tooltip("클릭 레이를 투영할 바닥 높이 (월드 y, Physics 레이 실패 시 폴백용)")]
         public float groundHeight = 0f;
+
+        [Tooltip("못 가는 곳을 찍었을 때 가장 가까운 NavMesh를 찾는 최대 반경")]
+        public float sampleRadius = 12f;
 
         [Tooltip("목적지 표식을 그릴지 여부 (기즈모)")]
         public bool drawDestinationGizmo = true;
@@ -42,23 +46,48 @@ namespace SpawnSystem.Player
             if (mouse == null || _camera == null)
                 return;
 
-            if (mouse.leftButton.wasPressedThisFrame)
+            // 우클릭 = 이동. isPressed 라서 꾹 누르고 있으면 매 프레임 목적지를 갱신한다.
+            if (mouse.rightButton.isPressed)
                 TryMoveToCursor(mouse.position.ReadValue());
+
+            // 좌클릭 = 공격 (미구현). 추후 여기에서 공격 입력을 처리.
+            // if (mouse.leftButton.wasPressedThisFrame) TryAttackAtCursor(mouse.position.ReadValue());
         }
 
         void TryMoveToCursor(Vector2 screenPos)
         {
             Ray ray = _camera.ScreenPointToRay(screenPos);
 
-            // 콜라이더 의존 없이 수학 평면(y=groundHeight)과 교차.
-            var plane = new Plane(Vector3.up, new Vector3(0f, groundHeight, 0f));
-            if (!plane.Raycast(ray, out float enter))
-                return;
+            // 커서 아래의 실제 지오메트리(바닥/벽/장애물 콜라이더)를 찍는다.
+            // 벽 '위'를 클릭하면 벽 표면 지점이 잡혀서 "못 가는 곳"으로 올바르게 해석됨.
+            Vector3 clicked;
+            if (Physics.Raycast(ray, out RaycastHit physHit, 500f))
+            {
+                clicked = physHit.point;
 
-            Vector3 hit = ray.GetPoint(enter);
+                // 카메라가 기울어져 있어 벽의 '수직 옆면'을 찍는 경우가 잦다.
+                // 법선이 거의 수평(수직면)이면 → 그 면의 바닥 지점으로 내리고, 법선 바깥쪽
+                // (걸을 수 있는 쪽)으로 에이전트 반경만큼 밀어 그 벽면에 밀착시킨다.
+                if (Mathf.Abs(physHit.normal.y) < 0.5f)
+                {
+                    Vector3 outward = new Vector3(physHit.normal.x, 0f, physHit.normal.z).normalized;
+                    clicked = new Vector3(physHit.point.x, groundHeight, physHit.point.z)
+                              + outward * (_agent.radius + 0.1f);
+                }
+            }
+            else
+            {
+                // 콜라이더를 못 맞추면 y=groundHeight 평면으로 폴백.
+                var plane = new Plane(Vector3.up, new Vector3(0f, groundHeight, 0f));
+                if (!plane.Raycast(ray, out float enter))
+                    return;
+                clicked = ray.GetPoint(enter);
+            }
 
-            // 클릭 지점에서 가장 가까운 NavMesh 위치로 스냅(벽 밖 클릭 방어).
-            if (NavMesh.SamplePosition(hit, out NavMeshHit navHit, 4f, NavMesh.AllAreas))
+            // 클릭 지점에서 '갈 수 있는' 가장 가까운 NavMesh 위치로 스냅.
+            // - 갈 수 있는 바닥(벽 너머 포함)을 찍으면 → 그 지점이 잡히고, SetDestination 이 우회 경로를 계산.
+            // - 못 가는 곳(벽 위 등)을 찍으면 → 가장 가까운 가장자리가 잡혀 벽에 붙어 멈춤.
+            if (NavMesh.SamplePosition(clicked, out NavMeshHit navHit, sampleRadius, NavMesh.AllAreas))
             {
                 _destination = navHit.position;
                 _hasDestination = true;
