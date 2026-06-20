@@ -1,0 +1,17 @@
+{
+    "name": "SpawnSystem.UI",
+    "rootNamespace": "SpawnSystem.UI",
+    "references": [
+        "SpawnSystem",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

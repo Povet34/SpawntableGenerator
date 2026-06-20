@@ -83,11 +83,16 @@ namespace SpawnSystem.Spawning
                 }
                 pack.RegisterMember(m);
 
-                // 공격 프로필이 있으면 MonsterAttack 부착
+                // 공격 프로필이 있으면 MonsterAttack 부착 (풀 재사용 시 중복 방지)
+                var existingMa = m.gameObject.GetComponent<Combat.MonsterAttack>();
                 if (attack != null && attack.attacks != null && attack.attacks.Length > 0)
                 {
-                    var ma = m.gameObject.AddComponent<Combat.MonsterAttack>();
+                    var ma = existingMa != null ? existingMa : m.gameObject.AddComponent<Combat.MonsterAttack>();
                     ma.Init(attack, player);
+                }
+                else if (existingMa != null)
+                {
+                    existingMa.enabled = false;
                 }
             }
             return pack;

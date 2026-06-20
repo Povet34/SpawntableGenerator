@@ -17,8 +17,8 @@ MonoBehaviour:
     kind: 1
     damage: 5
     damageType: 1
-    range: 14
-    cooldown: 1.2
+    range: 18
+    cooldown: 2
     telegraph: 0.4
     aoeRadius: 0
-    projectileSpeed: 20
+    projectileSpeed: 18

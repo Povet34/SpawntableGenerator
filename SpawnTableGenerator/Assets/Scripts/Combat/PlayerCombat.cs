@@ -6,31 +6,39 @@ using UnityEngine.InputSystem;
 namespace SpawnSystem.Combat
 {
     /// <summary>
-    /// 플레이어 전투 (스타워즈 빔 느낌). WeaponSO 기반.
-    /// 1키 = 광선검 부채꼴 근접(120°, 왼→오 스윕, Hovl 슬래시 VFX).
-    /// 2키 = 블래스터 레이저 투사체(커서 조준, 캐릭터 순간 회전).
-    /// 공격 시 캐릭터가 커서 방향으로 즉시 전향.
+    /// 플레이어 전투.
+    /// 1키 / 2키 → 무기 슬롯 스왑 (근접 / 원거리).
+    /// 좌클릭 홀드 → 현재 슬롯 무기 발사 (쿨다운 지속 연사).
     /// </summary>
     public class PlayerCombat : MonoBehaviour
     {
-        [Header("무기 SO (Inspector에서 할당)")]
-        public WeaponSO meleeWeapon;
-        public WeaponSO rangedWeapon;
+        [Header("무기 슬롯")]
+        public MeleeWeaponSO meleeWeapon;   // 슬롯 1
+        public RangedWeaponSO rangedWeapon; // 슬롯 2
 
-        float _meleeCd;
-        float _rangedCd;
+        [Header("발사 지점")]
+        [Tooltip("원거리 발사 시작 지점. 비우면 'Muzzle' 자식을 자동 탐색.")]
+        public Transform muzzle;
+
+        int _slot = 0; // 0=근접, 1=원거리
+        float _cooldown;
 
         Camera _cam;
         readonly List<Vector3> _posBuf = new List<Vector3>();
         readonly List<Monster> _monBuf = new List<Monster>();
-
         Player.PlayerController _ctrl;
+
+        WeaponSO ActiveWeapon => _slot == 0 ? (WeaponSO)meleeWeapon : rangedWeapon;
+        public int ActiveSlot => _slot;
+
+        /// <summary>무기 슬롯이 바뀔 때 발행(UI 모델 어댑터가 구독).</summary>
+        public event System.Action SlotChanged;
 
         void Awake()
         {
             _cam = Camera.main;
             _ctrl = GetComponent<Player.PlayerController>();
-            // 런타임에 WeaponSO 미할당 시 기본값
+            if (muzzle == null) muzzle = transform.Find("Muzzle");
             if (meleeWeapon == null) meleeWeapon = MakeDefaultMelee();
             if (rangedWeapon == null) rangedWeapon = MakeDefaultRanged();
         }
@@ -38,60 +46,76 @@ namespace SpawnSystem.Combat
         void Update()
         {
             if (_cam == null) _cam = Camera.main;
-            _meleeCd -= Time.deltaTime;
-            _rangedCd -= Time.deltaTime;
+            _cooldown -= Time.deltaTime;
 
             var kb = Keyboard.current;
-            if (kb == null) return;
-            if (kb.digit1Key.wasPressedThisFrame && _meleeCd <= 0f) FireMelee();
-            if (kb.digit2Key.wasPressedThisFrame && _rangedCd <= 0f) FireRanged();
+            if (kb != null)
+            {
+                if (kb.digit1Key.wasPressedThisFrame) SetSlot(0);
+                if (kb.digit2Key.wasPressedThisFrame) SetSlot(1);
+            }
+
+            // 좌클릭 홀드 → 현재 무기 연속 발사
+            if (Mouse.current != null && Mouse.current.leftButton.isPressed && _cooldown <= 0f)
+                Fire();
         }
 
-        public void FireMelee()
+        void SetSlot(int slot)
         {
+            if (_slot == slot) return;
+            _slot = slot;
+            SlotChanged?.Invoke();
+        }
+
+        void Fire()
+        {
+            var w = ActiveWeapon;
+            if (w == null) return;
+
             Vector3 aimDir = AimDir();
             FaceDir(aimDir);
 
-            // 부채꼴 데미지
+            if (w is MeleeWeaponSO melee)
+                FireMelee(melee, aimDir);
+            else if (w is RangedWeaponSO ranged)
+                FireRanged(ranged, aimDir);
+        }
+
+        public void FireMelee(MeleeWeaponSO melee, Vector3 aimDir)
+        {
             GatherMonsters();
-            var hits = AoeTargets.InArc(transform.position, aimDir,
-                                         meleeWeapon.meleeRadius, meleeWeapon.meleeArcDeg, _posBuf);
+            var hits = AoeTargets.InArc(transform.position, aimDir, melee.radius, melee.arcDeg, _posBuf);
             foreach (int i in hits)
             {
                 var h = _monBuf[i].Health;
-                if (h != null) h.TakeDamage(meleeWeapon.damage, meleeWeapon.damageType);
+                if (h != null) h.TakeDamage(melee.damage, melee.damageType);
             }
 
-            // 부채꼴 VFX (빔 셰이더)
-            Color c = new Color(0.3f, 1f, 0.5f); // 연초록
-            MeleeArcVfx.Spawn(transform.position, aimDir,
-                               meleeWeapon.meleeRadius, meleeWeapon.meleeArcDeg, 0.22f, c);
+            MeleeArcVfx.Spawn(transform.position, aimDir, melee.radius, melee.arcDeg, 0.1f,
+                               new Color(0.3f, 1f, 0.5f));
 
-            // Hovl Studio 슬래시 VFX (Inspector에서 SO에 할당됐을 때)
-            if (meleeWeapon.slashVfxPrefab != null)
+            if (melee.slashVfxPrefab != null)
             {
-                var vgo = Object.Instantiate(meleeWeapon.slashVfxPrefab, transform.position,
+                var vgo = Object.Instantiate(melee.slashVfxPrefab, transform.position,
                                              Quaternion.LookRotation(aimDir));
                 Object.Destroy(vgo, 3f);
             }
 
-            _meleeCd = meleeWeapon.cooldown;
+            _cooldown = melee.cooldown;
             NotifyViewPressure(aimDir);
         }
 
-        public void FireRanged()
+        public void FireRanged(RangedWeaponSO ranged, Vector3 aimDir)
         {
-            Vector3 aimDir = AimDir();
-            FaceDir(aimDir);
-
-            Vector3 origin = transform.position + Vector3.up * 1.1f + aimDir * 1.2f;
-            LaserProjectile.Spawn(origin, aimDir, rangedWeapon, hitsPlayer: false);
-
-            _rangedCd = rangedWeapon.cooldown;
+            // Muzzle(얼굴 발사구)에서 발사. 없으면 몸통 위쪽에서 폴백.
+            Vector3 origin = muzzle != null
+                ? muzzle.position
+                : transform.position + Vector3.up * 1.1f + aimDir * 1.2f;
+            LaserProjectile.Spawn(ranged.projectilePrefab, origin, aimDir, ranged, hitsPlayer: false);
+            _cooldown = ranged.cooldown;
             NotifyViewPressure(aimDir);
         }
 
-        // 커서 → 지면 투영 조준 방향
         Vector3 AimDir()
         {
             if (_cam != null && Mouse.current != null)
@@ -113,7 +137,6 @@ namespace SpawnSystem.Combat
             dir.y = 0f;
             if (dir.sqrMagnitude < 1e-4f) return;
             transform.rotation = Quaternion.LookRotation(dir);
-            // PlayerController의 NavMeshAgent 수동 회전 모드에 알림
             if (_ctrl != null) _ctrl.OverrideRotation(dir);
         }
 
@@ -130,35 +153,31 @@ namespace SpawnSystem.Combat
             }
         }
 
-        // 몬스터가 플레이어의 시야압 계산에 사용할 마지막 공격 방향을 MonsterPack에 브로드캐스트
         void NotifyViewPressure(Vector3 dir)
         {
             var packs = Object.FindObjectsByType<Monsters.MonsterPack>(FindObjectsSortMode.None);
-            foreach (var pk in packs)
-                pk.NotifyPlayerAttack(dir);
+            foreach (var pk in packs) pk.NotifyPlayerAttack(dir);
         }
 
-        static WeaponSO MakeDefaultMelee()
+        static MeleeWeaponSO MakeDefaultMelee()
         {
-            var w = ScriptableObject.CreateInstance<WeaponSO>();
-            w.kind = WeaponKind.Melee;
+            var w = ScriptableObject.CreateInstance<MeleeWeaponSO>();
             w.damage = 40f;
             w.damageType = DamageType.Piercing;
             w.cooldown = 0.45f;
-            w.meleeRadius = 4.5f;
-            w.meleeArcDeg = 120f;
+            w.radius = 4.5f;
+            w.arcDeg = 120f;
             return w;
         }
 
-        static WeaponSO MakeDefaultRanged()
+        static RangedWeaponSO MakeDefaultRanged()
         {
-            var w = ScriptableObject.CreateInstance<WeaponSO>();
-            w.kind = WeaponKind.Ranged;
+            var w = ScriptableObject.CreateInstance<RangedWeaponSO>();
             w.damage = 14f;
             w.damageType = DamageType.Normal;
-            w.cooldown = 0.25f;
-            w.projectileSpeed = 45f;
-            w.projectileRange = 35f;
+            w.cooldown = 0.22f;
+            w.projectileSpeed = 75f;
+            w.projectileRange = 40f;
             w.projectileColor = new Color(4f, 0.6f, 0.4f, 1f);
             return w;
         }

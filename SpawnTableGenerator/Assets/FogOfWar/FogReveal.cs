@@ -1,77 +1,57 @@
 using UnityEngine;
 
 /// <summary>
-/// 플레이어에 부착 — VolumetricFog2 의 Fog of War 에서 플레이어 주변을 매 프레임 걷어냄.
-/// VolumetricFog 컴포넌트가 씬에 있어야 동작. URP Renderer에 VolumetricFogRenderFeature 등록 필요.
-/// Assembly-CSharp 에 컴파일돼 VolumetricFog2 + SpawnSystem 모두 접근 가능.
+/// 플레이어에 부착 — VolumetricFogAndMist2의 Fog of War에서
+/// 플레이어 주변을 걷어냄. Awake에서 먼저 초기화해 LateUpdate보다
+/// 빠른 실행을 보장하고, 이동 임계값 기반 업데이트로 복구 아티팩트를 줄인다.
 /// </summary>
 public class FogReveal : MonoBehaviour
 {
-    [Tooltip("플레이어 주변 시야 반경")]
     public float revealRadius = 15f;
 
-    [Tooltip("플레이어가 벗어난 뒤 안개가 복구되기까지의 지연(초)")]
-    public float restoreDelay = 4f;
+    [Tooltip("이 거리 이상 이동했을 때만 FoW를 업데이트 (잦은 호출로 인한 엣지 아티팩트 방지)")]
+    public float updateThreshold = 0.5f;
 
-    [Tooltip("안개 복구 소요 시간(초)")]
-    public float restoreDuration = 2f;
+    VolumetricFogAndMist2.VolumetricFog _fog;
+    Vector3 _lastRevealPos = Vector3.one * float.MaxValue;
 
-    object _fog; // VolumetricFog2.VolumetricFog — 직접 타입 참조 대신 reflection 사용
-    System.Reflection.MethodInfo _setAlpha;
+    void Awake()
+    {
+        // LateUpdate보다 먼저 실행되도록 Awake에서 초기화
+        _fog = UnityEngine.Object.FindAnyObjectByType<VolumetricFogAndMist2.VolumetricFog>();
+        if (_fog == null) return;
+
+        _fog.enableFogOfWar = true;
+        _fog.fogOfWarRestoreDelay = 4f;
+        _fog.fogOfWarRestoreDuration = 2.5f;
+        _fog.fogOfWarBlur = true;
+        _fog.fogOfWarTextureWidth = 512;
+        // ReloadFogOfWarTexture → FogOfWarInit → fowTransitionList 초기화
+        // (도메인 리로드 후 null 상태로 LateUpdate가 실행되는 버그 방지)
+        _fog.ReloadFogOfWarTexture();
+
+        RevealAt(transform.position);
+    }
 
     void Start()
     {
-        // VolumetricFog2 네임스페이스 없이 안전하게 찾기
-        var fogType = System.Type.GetType("VolumetricFog2.VolumetricFog, VolumetricFog2");
-        if (fogType == null)
-            fogType = FindFogType();
-
-        if (fogType != null)
-        {
-            _fog = Object.FindAnyObjectByType(fogType);
-            if (_fog != null)
-            {
-                // enableFogOfWar = true
-                var field = fogType.GetField("enableFogOfWar",
-                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                field?.SetValue(_fog, true);
-
-                // ReloadFogOfWarTexture()
-                var reload = fogType.GetMethod("ReloadFogOfWarTexture");
-                reload?.Invoke(_fog, null);
-
-                // SetFogOfWarAlpha(Vector3, float, float, float, float, float, float) 시그니처 찾기
-                _setAlpha = fogType.GetMethod("SetFogOfWarAlpha", new[] {
-                    typeof(Vector3), typeof(float), typeof(float),
-                    typeof(float), typeof(float), typeof(float), typeof(float)
-                });
-
-                Debug.Log($"[FogReveal] VolumetricFog found: {_fog}  setAlpha={_setAlpha != null}");
-            }
-            else
-                Debug.LogWarning("[FogReveal] VolumetricFog 컴포넌트를 씬에서 찾지 못했습니다.");
-        }
+        if (_fog != null)
+            Debug.Log("[FogReveal] FoW 활성화 (threshold=" + updateThreshold + " blur=true tex=512)");
         else
-            Debug.LogWarning("[FogReveal] VolumetricFog2 타입을 찾지 못했습니다. 에셋이 임포트됐는지 확인하세요.");
+            Debug.LogWarning("[FogReveal] VolumetricFog 컴포넌트를 씬에서 찾지 못했습니다.");
     }
 
     void Update()
     {
-        if (_fog == null || _setAlpha == null) return;
-        // SetFogOfWarAlpha(pos, radius, alpha=0, duration=0, smoothness=0, restoreDelay, restoreDuration)
-        _setAlpha.Invoke(_fog, new object[] {
-            transform.position, revealRadius, 0f,
-            0f, 0f, restoreDelay, restoreDuration
-        });
+        if (_fog == null) return;
+        Vector3 pos = transform.position;
+        if (Vector3.Distance(pos, _lastRevealPos) >= updateThreshold)
+            RevealAt(pos);
     }
 
-    static System.Type FindFogType()
+    void RevealAt(Vector3 pos)
     {
-        foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
-        {
-            var t = asm.GetType("VolumetricFog2.VolumetricFog");
-            if (t != null) return t;
-        }
-        return null;
+        _fog.SetFogOfWarAlpha(pos, revealRadius, 0f);
+        _lastRevealPos = pos;
     }
 }

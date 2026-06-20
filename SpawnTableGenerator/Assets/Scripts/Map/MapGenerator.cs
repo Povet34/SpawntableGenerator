@@ -37,6 +37,15 @@ namespace SpawnSystem.Map
         [Tooltip("Generate 시 NavMesh를 자동 베이크")]
         public bool bakeOnGenerate = true;
 
+        [Header("연동")]
+        [Tooltip("맵 크기가 바뀔 때 같이 리사이즈할 볼류메트릭 포그 GO (선택)")]
+        public Transform fogVolumeTransform;
+        [Tooltip("SpawnDirector mapHalfSize를 맵 크기에 맞게 자동 업데이트 (선택)")]
+        public Spawning.SpawnDirector spawnDirector;
+
+        /// <summary>Generate() 완료 시 발행 — FogMapSync 등 외부에서 구독 가능.</summary>
+        public System.Action<float, float> onGenerated;
+
         const string GeneratedRootName = "Generated";
 
         Material _floorMat;
@@ -60,6 +69,26 @@ namespace SpawnSystem.Map
 
             if (bakeOnGenerate)
                 Bake();
+
+            SyncDependents();
+        }
+
+        void SyncDependents()
+        {
+            // 포그 볼륨 크기 동기화 (Y는 유지)
+            if (fogVolumeTransform != null)
+            {
+                float fogY = fogVolumeTransform.localScale.y;
+                fogVolumeTransform.localScale = new Vector3(width, fogY, length);
+                fogVolumeTransform.position = new Vector3(0f, fogVolumeTransform.position.y, 0f);
+            }
+
+            // SpawnDirector 경계 동기화
+            if (spawnDirector != null)
+                spawnDirector.mapHalfSize = Mathf.Max(width, length) * 0.5f - 2f;
+
+            // 외부 구독자 알림 (FogMapSync 등)
+            onGenerated?.Invoke(width, length);
         }
 
         public void Clear()

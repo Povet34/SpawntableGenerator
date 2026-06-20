@@ -31,6 +31,14 @@ namespace SpawnSystem.Spawning
         [Tooltip("예측 위치 주변에 스폰할 거리(안 보이는 곳 근사)")]
         public float spawnAroundRadius = 18f;
 
+        [Header("맵 경계")]
+        [Tooltip("맵 중심(0,0,0) 기준 스폰 가능 반경. 0이면 제한 없음.")]
+        public float mapHalfSize = 42f;
+
+        [Header("외부 변조")]
+        [Tooltip("스폰 간격 배율(낮=1, 밤<1). Environment.SpawnRateResponder가 낮/밤에 맞춰 설정.")]
+        public float spawnIntervalScale = 1f;
+
         float _elapsed;
         float _budget;
         float _spawnTimer;
@@ -71,7 +79,8 @@ namespace SpawnSystem.Spawning
             if (_spawnTimer > 0f) return;
 
             Intensity = TensionCalculator.Intensity(_elapsed, profile.maxTime, objectivesRemaining, objectivesTotal, profile.wTime, profile.wObjective);
-            _spawnTimer = TensionCalculator.SpawnInterval(Intensity, profile.maxSpawnInterval, profile.minSpawnInterval);
+            _spawnTimer = TensionCalculator.SpawnInterval(Intensity, profile.maxSpawnInterval, profile.minSpawnInterval)
+                          * Mathf.Max(0.1f, spawnIntervalScale);
             TrySpawnWave(Intensity);
         }
 
@@ -99,15 +108,34 @@ namespace SpawnSystem.Spawning
             }
         }
 
-        /// <summary>플레이어 예측 위치 주변(안 보이는 곳 근사)으로 스폰 위치 결정.</summary>
+        /// <summary>플레이어 예측 위치 주변(안 보이는 곳 근사)으로 스폰 위치 결정. 맵 경계 클램핑 포함.</summary>
         Vector3 SpawnPos()
         {
-            if (spawnOrigin != null) return spawnOrigin.position;
-            if (player == null) return transform.position;
+            Vector3 pos;
+            if (spawnOrigin != null)
+            {
+                pos = spawnOrigin.position;
+            }
+            else if (player == null)
+            {
+                pos = transform.position;
+            }
+            else
+            {
+                Vector3 predicted = SpawnPlacement.Predict(player.position, PlayerVelocity(), spawnLeadTime);
+                Vector2 ring = Random.insideUnitCircle.normalized * spawnAroundRadius;
+                pos = predicted + new Vector3(ring.x, 0f, ring.y);
+            }
 
-            Vector3 predicted = SpawnPlacement.Predict(player.position, PlayerVelocity(), spawnLeadTime);
-            Vector2 ring = Random.insideUnitCircle.normalized * spawnAroundRadius;
-            return predicted + new Vector3(ring.x, 0f, ring.y);
+            // 맵 경계 클램핑 (NavMesh 밖 스폰 방지)
+            if (mapHalfSize > 0f)
+            {
+                float limit = mapHalfSize - 2f; // 벽 두께 여유
+                pos.x = Mathf.Clamp(pos.x, -limit, limit);
+                pos.z = Mathf.Clamp(pos.z, -limit, limit);
+            }
+
+            return pos;
         }
 
         Vector3 PlayerVelocity()
