@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 75f7454eb14b28943883ebc144e67f3e, type: 3}
+  m_Name: ST_Sample
+  m_EditorClassIdentifier: SpawnSystem::SpawnSystem.Spawning.SpawnTable
+  mode: 1
+  entries:
+  - monster: {fileID: 11400000, guid: bed0747ab26a7ec46bbbaa35753e1e7a, type: 2}
+    weight: 3
+    cost: 2
+    groupSize: {x: 4, y: 7}
+    minDifficulty: 0
+    tags: 0
+  - monster: {fileID: 11400000, guid: e08c72f65ef5c7549b4906ea5bd97bb3, type: 2}
+    weight: 1
+    cost: 3
+    groupSize: {x: 2, y: 4}
+    minDifficulty: 0.2
+    tags: 0
+  - monster: {fileID: 11400000, guid: 878b1ca89b2c0fa40be8c6f7cb2dd34c, type: 2}
+    weight: 2
+    cost: 4
+    groupSize: {x: 2, y: 4}
+    minDifficulty: 0
+    tags: 0
+  - monster: {fileID: 11400000, guid: 54d031290be3d8c4cab53646ca65534b, type: 2}
+    weight: 1
+    cost: 10
+    groupSize: {x: 1, y: 1}
+    minDifficulty: 0.5
+    tags: 0

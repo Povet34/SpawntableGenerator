@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3e1e4558649de294c8e8db70e95309dd, type: 3}
+  m_Name: MP_Skittish
+  m_EditorClassIdentifier: SpawnSystem::SpawnSystem.Monsters.MovementProfile
+  viewConeAngle: 70
+  viewConeRange: 18
+  lastAttackMemory: 2.5
+  reactionThreshold: 0.25
+  repositionInterval: {x: 0.3, y: 0.9}
+  actChance: 0.7
+  wViewAvoid: 2
+  wPreferredDist: 1
+  wNeighborSpacing: 0.6
+  wInertia: 0.4
+  costTurnThenMove: 1
+  costStrafe: 0.25
+  costBackstep: 0.5

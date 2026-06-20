@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc79736c3f4e4a348b14ceaaee70c78b, type: 3}
+  m_Name: MD_Melee_Medium
+  m_EditorClassIdentifier: SpawnSystem::SpawnSystem.Monsters.MonsterDef
+  id: MD_Melee_Medium
+  displayName: "\uC911\uAC04\uB188"
+  tags: 1
+  bodyPrimitive: 1
+  sizeClass: 1
+  scale: 1
+  color: {r: 0.85, g: 0.2, b: 0.2, a: 1}
+  moveSpeed: 4
+  turnSpeedDeg: 360
+  canStrafe: 0
+  canBackstep: 0
+  maxHP: 12
+  preferredRange: {x: 0, y: 2}
+  defense: {fileID: 11400000, guid: e7f3ecf62bda6664cb3d8d03719ddbb3, type: 2}
+  attack: {fileID: 11400000, guid: 112e2b5d0a72a624d9672f7f524c8954, type: 2}
+  abilities: 0
+  movement: {fileID: 11400000, guid: d6afcf723db49b54c943bae0e89fa84f, type: 2}
+  canFlee: 1
+  fleeHpRatio: 0.25

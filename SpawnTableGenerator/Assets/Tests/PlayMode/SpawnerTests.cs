@@ -42,5 +42,36 @@ namespace SpawnSystem.Tests
                 Object.DestroyImmediate(go);
             }
         }
+
+        [Test]
+        public void Spawn_WithMonsterDef_AppliesScale()
+        {
+            using var env = NavTestEnvironment.WithCenterWall(60f, new Vector3(0f, 1.5f, 30f), new Vector3(1f, 3f, 1f));
+
+            var def = ScriptableObject.CreateInstance<MonsterDef>();
+            def.scale = 1.6f;
+            def.moveSpeed = 2.5f;
+            def.color = Color.magenta;
+
+            var go = new GameObject("Spawner");
+            var spawner = go.AddComponent<MonsterPackSpawner>();
+            spawner.spawnOnStart = false;
+            spawner.memberCount = 3;
+            spawner.spawnCenter = Vector3.zero;
+            spawner.monsterDef = def;
+
+            try
+            {
+                var pack = spawner.Spawn();
+                Assert.AreEqual(3, pack.members.Count);
+                foreach (var m in pack.members)
+                    Assert.AreEqual(1.6f, m.transform.localScale.x, 0.01f, "멤버 크기가 def.scale 을 따라야 한다");
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+                Object.DestroyImmediate(def);
+            }
+        }
     }
 }

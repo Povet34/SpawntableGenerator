@@ -33,6 +33,9 @@
 
 `cost` + 예산이 난이도 스케일링의 핵심: 초반 적은 예산 → 싸구려 스웜, 후반 많은 예산 → 엘리트 구매.
 
+> 실제 몬스터 종류(근접/원거리/증원 로스터 + 잠정 스탯)는 [Monsters.md](Monsters.md) 참조. 로스터가
+> 요구하는 장갑/데미지 타입·특수능력(Leap/Burrow/Summon)·공격 정의는 §13 스키마 확장 대상(검토 중).
+
 ---
 
 ## 3. 런타임 시스템
@@ -129,7 +132,7 @@ spawnInterval = lerp(최대간격, 최소간격, intensity)   // 최소간격으
 1. ✅ 테스트 씬 스켈레톤 — 평면 navmesh + 큐브 벽 + 클릭 이동 플레이어(캡슐). MOBA식 우클릭 이동(홀드 추적), 벽 우회/벽면 밀착, 시네머신 탑다운 카메라까지.
 2. ✅ `MonsterPack` 가상 앵커 + boids 멤버 — 응집/분리 순수 로직(`BoidsSteering`) TDD, 군집 수렴 PlayMode 검증.
 3. 인지/상태머신(FSM) — 시야·소음·거리, 군집 공유 상태
-4. `SpawnDirector` + `SpawnTable`(ScriptableObject) + 풀링 — 둥지 스폰 + 긴장도
+4. ✅ `SpawnDirector` + `SpawnTable`(SO) + 긴장도/예산 + **풀링** — TensionCalculator·SpawnSelector·Pool 순수 로직 + DirectorProfile/SpawnTable/SpawnEntry SO + PackFactory + `MonsterPool`(디스폰 시 재사용, MonsterPack.Despawn). 씬에 SpawnDirector 배치. (실제 재사용 이득은 디스폰 트리거=전투/사망 생기면 발휘.)
 5. 목표 시스템 + 엔드게임 `PlayerRing` 스폰
 6. 에디터 제너레이터 툴 + 디버그 HUD/기즈모
 
@@ -230,3 +233,85 @@ LOD), 또는 저정밀 LOD에선 transform 추종." 길찾기는 여전히 앵�
 
 > 미구현/후순위: LOD 컨트롤러, 크기별 navmesh 베이크, 접근 경로 vs 근접 포위 블렌딩, 포메이션 슬롯
 > 풀링(매 프레임 배열 할당 제거). 현재 1차 구현은 **포위 슬롯 + AgentMover(벽 통과 차단)** 까지.
+>
+> **부수효과(결정됨):** 멤버 회피(RVO)가 플레이어를 떠밀던 문제 → **플레이어는 안 밀림**으로 결정.
+> NavMeshAgent.avoidancePriority 로 처리(플레이어 50=더 중요 / 몬스터 60=덜 중요). 몬스터는 플레이어를
+> 피하되 밀지 못함.
+
+---
+
+## 12. 적 이동 AI — 시야 회피 기반 유틸리티 스코어링 (요청 반영)
+
+> 11.3의 "고정 슬롯 포위(`EncircleFormation`/`encircleRadius`)"를 대체하는 상위 모델.
+> **포위는 목표가 아니라 결과다.** 몬스터는 포위하려고 움직이는 게 아니라, 플레이어의 **시야를 피하려는
+> 성질** 때문에 이리저리 움직이고, 그 결과 "어쩌다 보니 플레이어 주위에 있더라"가 되어야 한다.
+
+### 12.1 핵심 원칙
+- 포위는 **창발(emergent)**. 일정 간격으로 줄 세우지 않는다. (현재 구현은 너무 균일 → 교체 대상.)
+- 모든 행동은 **즉각적이지 않다**. 시야에 들어왔다고 바로 피하면 "너무 정직하고 재미없음". 점수로
+  판단해 **움직일 수도, 안 움직일 수도** 있다(관성/이력 + 확률).
+- 간격(플레이어와의 거리, 몬스터끼리의 거리)은 **정확히 지킬 필요 없음** — 선호 점수일 뿐.
+  자연스러운 포위, 혹은 자연스러운 **와해** 둘 다 허용.
+
+### 12.2 플레이어 "시야"의 정의 (몬스터가 의식하는 것)
+몬스터는 플레이어의 **시야각(view cone)** 을 의식한다. "바라본다"는 두 가지 의미:
+1. **현재 플레이어 forward** — 지금 향한 방향의 콘.
+2. **직전 공격 시점/방향** — 최근 공격이 향했던 방향(시간이 지나면 감쇠).
+
+→ 둘이 합쳐져 "지금 노려봐지고 있다"는 **압박(pressure)** 점수를 만든다. (합성 가중치/감쇠율은 TBD.)
+
+### 12.3 회피 행동 (가능할 때만, 선호 순서)
+몬스터 능력(설정)에 따라 쓸 수 있는 수단이 다르다:
+1. 플레이어 시야 콘에서 빠지려 한다(콘 밖 위치 선호).
+2. **좌우걸음(strafe)** 가능하면 → 옆으로 피함. (= 이동에 그 방향을 바라볼 필요 없음 = 바라보는 방향과
+   이동 방향이 분리된 몬스터.)
+3. **뒷걸음(backstep)** 가능하면 → 뒤로 빠짐.
+4. 체력이 낮으면 **그냥 도망** — 단, "도망친다" 지능 플래그가 있는 몬스터만.
+
+### 12.4 유틸리티 스코어링 (간격 강제 없는 자연스러운 포위)
+멤버는 고정 슬롯이 아니라 **후보 목적지(dest)에 점수를 매겨** "나는 저기쯤이 좋겠다"를 고른다.
+점수 항(가중합, 몬스터별 튜닝):
+- 플레이어 시야 콘 회피(압박 클수록 콘 밖 선호) ← 핵심 동인.
+- 플레이어와의 선호 교전 거리(근접/원거리별로 다름).
+- 다른 몬스터와의 소프트 간격(겹침 회피, 강제 아님).
+- 행동 비용/패널티(좌우걸음 < 회전후전진, 뒷걸음 비용 등 — 몬스터별).
+- 관성/이력(현재 위치 유지 보너스 → 즉각 반응 억제, 잦은 떨림 방지).
+
+### 12.5 거리 레짐
+- **멀면**: 군집 행동 없이 그냥 **본인 최고 속력으로 직진**(포위/스코어링 비활성).
+- **근접 교전권**: 위 스코어링으로 시야 피하며 어슬렁 → 자연 포위/와해.
+- **원거리 몹(추후)**: 선호 사거리 이상으로 좁히지 않음 — 조금씩만 움직임.
+
+### 12.6 설정화 (후순위)
+위 모든 항(시야 민감도, 회피 수단 가능 여부, 행동별 패널티, 도망 지능, 선호 거리, 반응 둔감도 등)은
+**몬스터별 설정(config)** 으로 잡혀야 한다. 단 **설정 스키마 설계는 후순위** — "몬스터 설정을 얼마나 잘
+짤지"를 먼저 검토한 뒤 확정한다(2장 `MonsterDef` 와 연결).
+
+> 구현 메모: 현재 `EncircleFormation`(고정 슬롯) + `MonsterPack.encircleRadius` 는 **임시 플레이스홀더**.
+> 위 스코어링 모델로 대체 예정. `IMemberMover`(AgentMover)·navmesh 구속·회피 우선순위는 그대로 활용.
+>
+> 열린 질문(추후 결정): (a) 현재 forward 와 직전 공격 방향의 합성 가중치·감쇠, (b) 후보 목적지 생성
+> 방식(몬스터 주변 샘플 / 플레이어 링 / 그리드), (c) 몬스터 설정 스키마 — 위 12.6.
+
+---
+
+## 13. 몬스터 설정 스키마 (확정 — 린)
+
+§12.6의 "설정화"를 합성형 ScriptableObject 2종으로 구현. 범위는 **린**(전투/활력은 최소 stub,
+후속 `CombatProfile` 로 분리). 행동 성격은 **별도 재사용 SO**.
+
+- **`MonsterDef`** (SO) — "무엇인가": 정체성(id/태그), 몸체(bodyPrimitive/sizeClass/scale/color),
+  이동 능력(moveSpeed/turnSpeed/`canStrafe`/`canBackstep`), 활력(maxHP)/preferredRange, 특수능력
+  (`abilities`: Leap/Burrow/Summon), 지능(canFlee/fleeHpRatio), 그리고 **3 프로필 참조**: `movement`
+  →MovementProfile, `defense`→DefenseProfile, `attack`→AttackProfile.
+- **`MovementProfile`** (SO) — "어떻게 움직이는가"(재사용): 시야 인지(콘 각/사거리/공격 기억),
+  반응 둔감(reactionThreshold/repositionInterval/actChance), 스코어 가중치(wViewAvoid/wPreferredDist/
+  wNeighborSpacing/wInertia), 행동 비용(costTurnThenMove/costStrafe/costBackstep).
+
+시작용 콘텐츠: `Tools/Spawn System/Create Sample Monster Defs` → `Assets/GameData/Monsters/` 에
+프로필 2종(MP_Aggressive/MP_Skittish) + 몬스터 4종(스웜링/러너/표준/브루트, §11.1) 생성.
+`MonsterPackSpawner.monsterDef` 에 꽂으면 크기/색/속도가 def 에서 적용됨.
+
+> ✅ §12 스코어링 이동(컨텍스트 스티어링) 구현 완료. ✅ 방어/공격을 `DefenseProfile`/`AttackProfile`
+> SO로 분리 완료(이동/방어/공격 3 프로필) + `DamageResolver`(장갑/약점 규칙) + 로스터 8종 author링.
+> 후속: 인지(FSM, §3), 전투 실행(공격/데미지 적용/약점·부위파괴/소환), per-size navmesh(§11.4), LOD.

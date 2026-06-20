@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc79736c3f4e4a348b14ceaaee70c78b, type: 3}
+  m_Name: MD_Ranged_Small
+  m_EditorClassIdentifier: SpawnSystem::SpawnSystem.Monsters.MonsterDef
+  id: MD_Ranged_Small
+  displayName: "\uC791\uC740\uB188(\uC6D0\uAC70\uB9AC)"
+  tags: 2
+  bodyPrimitive: 1
+  sizeClass: 0
+  scale: 0.5
+  color: {r: 0.9, g: 0.8, b: 0.2, a: 1}
+  moveSpeed: 5
+  turnSpeedDeg: 360
+  canStrafe: 1
+  canBackstep: 1
+  maxHP: 4
+  preferredRange: {x: 8, y: 14}
+  defense: {fileID: 11400000, guid: 77d7f09d58056ab4bb345c1c221d744d, type: 2}
+  attack: {fileID: 11400000, guid: 0ba70e2088661b24ea4017dbfc6107e0, type: 2}
+  abilities: 0
+  movement: {fileID: 11400000, guid: 366703d73a4206e4aa485c8649ca938e, type: 2}
+  canFlee: 1
+  fleeHpRatio: 0.25

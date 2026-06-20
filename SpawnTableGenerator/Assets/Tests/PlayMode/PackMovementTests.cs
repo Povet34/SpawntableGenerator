@@ -20,7 +20,7 @@ namespace SpawnSystem.Tests
             var packGo = new GameObject("Pack");
             spawned.Add(packGo);
             var pack = packGo.AddComponent<MonsterPack>();
-            pack.settings = BoidsSettings.Default;
+            // player 미설정 → 앵커를 기준(시야/선호 거리)으로 컨텍스트 스티어링.
 
             var anchorGo = new GameObject("Anchor");
             anchorGo.transform.position = anchorPos;

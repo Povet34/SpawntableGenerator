@@ -18,6 +18,9 @@ namespace SpawnSystem.Monsters
         [Min(0.5f)] public float spawnRadius = 3f;
         public bool spawnOnStart = true;
 
+        [Header("몬스터 정의 (선택 — 설정 시 크기/색/속도를 이 def 에서 가져옴)")]
+        public MonsterDef monsterDef;
+
         [Header("몬스터 외형(프리미티브)")]
         public float memberDiameter = 1f;
         public Color memberColor = new Color(0.85f, 0.2f, 0.2f);
@@ -54,6 +57,9 @@ namespace SpawnSystem.Monsters
         /// <summary>군집(앵커+멤버)을 즉시 생성하고 반환. 모든 생성물은 스포너의 자식.</summary>
         public MonsterPack Spawn()
         {
+            if (monsterDef != null)
+                ApplyDef(monsterDef);
+
             Vector3 center = SnapToNavMesh(spawnCenter, 12f);
 
             // 보이지 않는 가상 앵커 + 길찾기 에이전트
@@ -74,13 +80,33 @@ namespace SpawnSystem.Monsters
             _pack = packGo.AddComponent<MonsterPack>();
             _pack.anchor = anchorGo.transform;
             _pack.anchorAgent = agent;
-            _pack.settings = settings;
+            _pack.player = target;
+            _pack.profile = monsterDef != null ? monsterDef.movement : null;
+            _pack.memberMoveSpeed = settings.MaxSpeed;
+            if (monsterDef != null)
+                _pack.preferredRange = monsterDef.preferredRange;
 
             EnsureMaterial();
             for (int i = 0; i < memberCount; i++)
             {
                 var member = CreateMemberVisual(packGo.transform, center, i);
                 var m = member.AddComponent<Monster>();
+
+                // 고정밀 이동: NavMeshAgent.Move 로 navmesh 구속(벽 통과 차단) + 회피(RVO).
+                // 길찾기(SetDestination)는 호출하지 않음 — 군집당 1 길찾기(앵커)만 유지.
+                var memberAgent = member.AddComponent<NavMeshAgent>();
+                memberAgent.radius = memberDiameter * 0.5f;
+                memberAgent.height = memberDiameter * 2f;
+                memberAgent.baseOffset = memberDiameter;
+                memberAgent.speed = settings.MaxSpeed;
+                memberAgent.acceleration = 9999f;
+                memberAgent.angularSpeed = 0f;
+                memberAgent.updateRotation = false;
+                memberAgent.autoBraking = false;
+                // 플레이어(기본 50)보다 '덜 중요'하게 두어, 무리가 플레이어를 피하되 밀어내지는 못하게 함.
+                memberAgent.avoidancePriority = 60;
+                m.Mover = new AgentMover(memberAgent);
+
                 _pack.RegisterMember(m);
             }
             return _pack;
@@ -121,6 +147,15 @@ namespace SpawnSystem.Monsters
         static Vector3 SnapToNavMesh(Vector3 p, float radius)
         {
             return NavMesh.SamplePosition(p, out var hit, radius, NavMesh.AllAreas) ? hit.position : p;
+        }
+
+        void ApplyDef(MonsterDef def)
+        {
+            memberDiameter = def.scale;
+            memberColor = def.color;
+            settings.MaxSpeed = def.moveSpeed;
+            anchorSpeed = def.moveSpeed;
+            _memberMat = null; // 색 갱신 위해 머티리얼 재생성 유도
         }
 
         void EnsureMaterial()
