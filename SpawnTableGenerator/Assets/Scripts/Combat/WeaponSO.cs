@@ -1,3 +1,4 @@
+using SpawnSystem.Monsters;
 using UnityEngine;
 
 namespace SpawnSystem.Combat

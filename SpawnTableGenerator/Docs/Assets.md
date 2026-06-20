@@ -39,8 +39,21 @@
 - **분위기**: Mist/Heavy Fog 프리셋으로 탑다운 무드.
 - 의존: URP Renderer 에 RenderFeature 등록 + FogManager.
 
-## 📦 Volumetric Fog Bundle (`Assets/VolumetricFogBundle/URP/`)
-위 Volumetric Fog 2 의 URP 번들/설치본. (URP 전용 패키지.)
+## ⚔️ Sword Slash VFX PRO — Hovl Studio (`Assets/Hovl Studio/Sword slash VFX/`)
+**Hovl Studio "Sword Slash VFX".** 파티클 기반 검 슬래시 이펙트. 프리팹 즉시 사용 가능.
+
+- **프리팹 목록** (`Prefabs/`):
+  - `Sword Slash 1~17` — 다양한 방향·색상 단순 슬래시 (17종).
+  - `Sword Slash Combo 1~9` — 연속 콤보 슬래시 (9종).
+  - `Prick 1~5` — 찌르기 이펙트 (5종).
+  - `Slash wave`, `Spatial section`, `Spikes attack` — 특수 효과.
+  - `Sword Slash mirror` — 좌우 미러 슬래시.
+- 파티클 시스템 기반 — VFX Graph 아님. `Instantiate` 후 자동 재생·종료. `Destroy(go, 3f)` 로 정리.
+
+**쓸 곳 / 아이디어**
+- **플레이어 근접(1키)**: `Sword Slash 1~3` 또는 `Combo` 프리팹 → WeaponSO.slashVfxPrefab 에 할당 → `PlayerCombat.FireMelee()` 에서 자동 스폰.
+- **적 근접**: `Sword Slash 5~8` (더 거친 느낌) → MonsterAttack 에서 별도 스폰 가능.
+- 색상 커스터마이징: 프리팹 복제 후 파티클 색 변경.
 
 ## ⚙️ Infrastructure — Roslyn (`Assets/Plugins/Roslyn/`)
 런타임/에디터 C# 컴파일러 DLL. MCP `execute_code`(in-editor C# 실행)·동적 컴파일 인프라. **게임 에셋 아님** — 건드릴 일 없음.
