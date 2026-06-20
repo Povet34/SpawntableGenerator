@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using SpawnSystem.Monsters;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace SpawnSystem.Spawning
 {
@@ -21,6 +22,14 @@ namespace SpawnSystem.Spawning
         [Header("목표 (긴장도용)")]
         [Min(0)] public int objectivesTotal = 3;
         [Min(0)] public int objectivesRemaining = 3;
+
+        [Header("배치 / 회수")]
+        [Tooltip("순찰 군집이 플레이어로부터 이 거리보다 멀어지면 풀로 회수(→ 예측 위치로 재스폰)")]
+        public float despawnDistance = 45f;
+        [Tooltip("플레이어 예측 위치 선행 시간(초) — 자주 만나게 하기 위함")]
+        public float spawnLeadTime = 1.5f;
+        [Tooltip("예측 위치 주변에 스폰할 거리(안 보이는 곳 근사)")]
+        public float spawnAroundRadius = 18f;
 
         float _elapsed;
         float _budget;
@@ -56,6 +65,7 @@ namespace SpawnSystem.Spawning
             _elapsed += dt;
             _budget = Mathf.Min(profile.maxBudget, _budget + profile.budgetPerSecond * dt);
             PrunePacks();
+            RecycleDistantPatrols();
 
             _spawnTimer -= dt;
             if (_spawnTimer > 0f) return;
@@ -81,13 +91,49 @@ namespace SpawnSystem.Spawning
                     continue;
 
                 int count = Mathf.Max(1, Random.Range(entry.groupSize.x, entry.groupSize.y + 1));
-                Vector3 pos = spawnOrigin != null ? spawnOrigin.position : transform.position;
+                Vector3 pos = SpawnPos();
 
                 var pack = PackFactory.BuildFromDef(entry.monster, count, pos, player, transform, _pool);
                 _activePacks.Add(pack);
                 _budget -= entry.cost;
             }
         }
+
+        /// <summary>플레이어 예측 위치 주변(안 보이는 곳 근사)으로 스폰 위치 결정.</summary>
+        Vector3 SpawnPos()
+        {
+            if (spawnOrigin != null) return spawnOrigin.position;
+            if (player == null) return transform.position;
+
+            Vector3 predicted = SpawnPlacement.Predict(player.position, PlayerVelocity(), spawnLeadTime);
+            Vector2 ring = Random.insideUnitCircle.normalized * spawnAroundRadius;
+            return predicted + new Vector3(ring.x, 0f, ring.y);
+        }
+
+        Vector3 PlayerVelocity()
+        {
+            var ag = player != null ? player.GetComponent<NavMeshAgent>() : null;
+            return ag != null ? ag.velocity : Vector3.zero;
+        }
+
+        /// <summary>플레이어로부터 너무 멀어진 '순찰' 군집을 풀로 회수(교전 중인 군집은 유지).</summary>
+        void RecycleDistantPatrols()
+        {
+            if (player == null) return;
+            Vector3 pp = player.position;
+            for (int i = _activePacks.Count - 1; i >= 0; i--)
+            {
+                var pack = _activePacks[i];
+                if (pack == null) { _activePacks.RemoveAt(i); continue; }
+                if (pack.State == PackState.Patrol && Flat(pack.AnchorPosition - pp).magnitude > despawnDistance)
+                {
+                    pack.Despawn(go => _pool.Release(go));
+                    _activePacks.RemoveAt(i);
+                }
+            }
+        }
+
+        static Vector3 Flat(Vector3 v) { v.y = 0f; return v; }
 
         void PrunePacks()
         {

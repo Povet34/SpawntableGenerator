@@ -17,7 +17,7 @@ MonoBehaviour:
   tags: 5
   bodyPrimitive: 3
   sizeClass: 2
-  scale: 4.5
+  scale: 3.5
   color: {r: 0.5, g: 0.15, b: 0.5, a: 1}
   moveSpeed: 1.8
   turnSpeedDeg: 360

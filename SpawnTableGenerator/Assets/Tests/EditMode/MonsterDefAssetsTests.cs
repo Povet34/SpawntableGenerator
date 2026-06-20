@@ -89,7 +89,7 @@ namespace SpawnSystem.Tests
             {
                 var d = Load(n);
                 Assert.AreEqual(PrimitiveType.Cube, d.bodyPrimitive, $"{n} 은 큐브여야 한다");
-                Assert.GreaterOrEqual(d.scale, 4f, $"{n} 은 진짜 커야 한다(>=4m)");
+                Assert.GreaterOrEqual(d.scale, 3f, $"{n} 은 크게(>=3m, 플레이어보다 확연히 큼)");
             }
         }
     }

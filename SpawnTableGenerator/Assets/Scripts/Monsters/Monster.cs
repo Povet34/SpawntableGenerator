@@ -42,16 +42,26 @@ namespace SpawnSystem.Monsters
     public class Monster : MonoBehaviour
     {
         [System.NonSerialized] public MonsterPack Pack;
+        [System.NonSerialized] public Health Health;
 
         IMemberMover _mover;
         Vector3 _heading;
         Vector3 _dir;
         float _decideTimer;
+        float _groundY;
+        bool _groundYSet;
 
         public IMemberMover Mover
         {
             get => _mover ??= new TransformMover();
             set => _mover = value;
+        }
+
+        /// <summary>이 게임은 XZ 평면(y축 없음). 멤버를 고정 높이에 묶는다(머리 위로 안 올라가게).</summary>
+        public void SetGroundY(float y)
+        {
+            _groundY = y;
+            _groundYSet = true;
         }
 
         /// <summary>풀에서 재사용될 때 이전 생애의 이동 상태를 초기화.</summary>
@@ -60,10 +70,17 @@ namespace SpawnSystem.Monsters
             _heading = Vector3.zero;
             _dir = Vector3.zero;
             _decideTimer = 0f;
+            _groundYSet = false;
         }
 
         public void Step(in SteerContext ctx, IReadOnlyList<Vector3> neighbors, float dt)
         {
+            if (!_groundYSet)
+            {
+                _groundY = transform.position.y; // 스폰 높이 = 바닥 안착 높이
+                _groundYSet = true;
+            }
+
             Vector3 self = transform.position;
             float distToPlayer = Flat(ctx.PlayerPos - self).magnitude;
 
@@ -87,6 +104,14 @@ namespace SpawnSystem.Monsters
 
             float speed = ctx.MoveSpeed * NavTerrain.SpeedMultiplier(self);
             Mover.MoveBy(transform, _dir * speed, dt);
+
+            // XZ 평면 고정 — y축 이동 금지(머리 위로 올라가지 않게).
+            var pos = transform.position;
+            if (!Mathf.Approximately(pos.y, _groundY))
+            {
+                pos.y = _groundY;
+                transform.position = pos;
+            }
 
             if (_dir.sqrMagnitude > 1e-4f)
             {

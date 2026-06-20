@@ -7,12 +7,11 @@ namespace SpawnSystem.Spawning
     /// <summary>
     /// MonsterDef 로부터 군집(가상 앵커 + 멤버 N마리)을 만드는 재사용 팩토리. 디렉터/스포너가 공유.
     /// 캡슐 멤버는 pool 로 재사용(설계 §3); 그 외 프리미티브(예: 큰 큐브)는 비풀링 생성. 멤버는
-    /// NavMeshAgent.Move(AgentMover)로 navmesh 구속, 길찾기는 앵커만(설계 §4, §12).
+    /// NavMeshAgent.Move(AgentMover)로 navmesh 구속, 길찾기는 앵커만(설계 §4, §12). 멤버는 Health 보유.
     /// </summary>
     public static class PackFactory
     {
         // navmesh 가 반경 0.5 로 베이크돼 있어, 덩치 큰 몹도 에이전트 반경은 캡(시각 크기와 분리).
-        // 정확한 처리는 §11.4 크기별 navmesh 베이크에서.
         const float MaxAgentRadius = 0.6f;
 
         public static MonsterPack BuildFromDef(MonsterDef def, int count, Vector3 center, Transform player, Transform parent, MonsterPool pool = null)
@@ -23,8 +22,10 @@ namespace SpawnSystem.Spawning
             Vector2 preferredRange = def != null ? def.preferredRange : new Vector2(1.5f, 4f);
             MovementProfile profile = def != null ? def.movement : null;
             PrimitiveType body = def != null ? def.bodyPrimitive : PrimitiveType.Capsule;
+            float maxHP = def != null ? def.maxHP : 10f;
+            DefenseProfile defense = def != null ? def.defense : null;
 
-            return Build(parent, center, count, diameter, color, speed, preferredRange, profile, player, pool, body);
+            return Build(parent, center, count, diameter, color, speed, preferredRange, profile, player, pool, body, maxHP, defense);
         }
 
         public static MonsterPack Build(
@@ -32,6 +33,7 @@ namespace SpawnSystem.Spawning
             float memberDiameter, Color color, float moveSpeed, Vector2 preferredRange,
             MovementProfile profile, Transform player, MonsterPool pool = null,
             PrimitiveType bodyPrimitive = PrimitiveType.Capsule,
+            float maxHP = 10f, DefenseProfile defense = null,
             float spawnRadius = 3f, float anchorSpeed = 3.5f)
         {
             Vector3 anchorPos = Snap(center, 12f);
@@ -56,8 +58,8 @@ namespace SpawnSystem.Spawning
             pack.profile = profile;
             pack.memberMoveSpeed = moveSpeed;
             pack.preferredRange = preferredRange;
+            pack.MemberReleaser = pool != null ? (System.Action<GameObject>)pool.Release : null;
 
-            // 큰 멤버는 스폰 링을 넓혀 겹침 완화.
             float ring = Mathf.Max(spawnRadius, memberDiameter * 1.2f);
             Material mat = null;
             for (int i = 0; i < count; i++)
@@ -68,21 +70,21 @@ namespace SpawnSystem.Spawning
                 Monster m;
                 if (pool != null && bodyPrimitive == PrimitiveType.Capsule)
                 {
-                    var go = pool.Get(mpos, packGo.transform, memberDiameter, color, moveSpeed);
+                    var go = pool.Get(mpos, packGo.transform, memberDiameter, color, moveSpeed, maxHP, defense);
                     go.name = $"Monster_{i:00}";
                     m = go.GetComponent<Monster>();
                 }
                 else
                 {
                     if (mat == null) mat = MakeMaterial(color);
-                    m = CreateMemberNonPooled(packGo.transform, mpos, i, bodyPrimitive, memberDiameter, moveSpeed, mat);
+                    m = CreateMemberNonPooled(packGo.transform, mpos, i, bodyPrimitive, memberDiameter, moveSpeed, mat, maxHP, defense);
                 }
                 pack.RegisterMember(m);
             }
             return pack;
         }
 
-        static Monster CreateMemberNonPooled(Transform parent, Vector3 center, int index, PrimitiveType primitive, float diameter, float moveSpeed, Material mat)
+        static Monster CreateMemberNonPooled(Transform parent, Vector3 center, int index, PrimitiveType primitive, float diameter, float moveSpeed, Material mat, float maxHP, DefenseProfile defense)
         {
             var go = GameObject.CreatePrimitive(primitive);
             go.name = $"Monster_{index:00}";
@@ -98,10 +100,17 @@ namespace SpawnSystem.Spawning
             if (r != null && mat != null) r.sharedMaterial = mat;
 
             var m = go.AddComponent<Monster>();
+            m.SetGroundY(halfHeight); // XZ 평면 고정
+
+            var hp = go.AddComponent<Health>();
+            hp.Init(maxHP, defense);
+            m.Health = hp;
+
             var ag = go.AddComponent<NavMeshAgent>();
-            ag.radius = Mathf.Min(diameter * 0.5f, MaxAgentRadius);
-            ag.height = primitive == PrimitiveType.Capsule ? diameter * 2f : diameter;
-            ag.baseOffset = halfHeight;
+            // NavMeshAgent 치수는 transform.scale(=diameter)로 곱해지므로 로컬값으로 환산(÷diameter).
+            ag.radius = Mathf.Min(diameter * 0.5f, MaxAgentRadius) / diameter;
+            ag.height = primitive == PrimitiveType.Capsule ? 2f : 1f;
+            ag.baseOffset = halfHeight / diameter;
             ag.speed = moveSpeed;
             ag.acceleration = 9999f;
             ag.angularSpeed = 0f;

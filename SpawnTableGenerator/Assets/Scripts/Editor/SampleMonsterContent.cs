@@ -52,12 +52,12 @@ namespace SpawnSystem.EditorTools
             Monster("MD_Melee_Medium", "중간놈", MonsterTag.Melee, 1.0f, 4.0f, 12f, false, false, true, MonsterAbility.None, new Vector2(0f, 2f), aggressive, dpLight, apClaw, red);
             Monster("MD_Melee_MediumBurrower", "중간놈 잠복형", MonsterTag.Melee, 1.0f, 4.0f, 12f, false, false, true, MonsterAbility.Burrow, new Vector2(0f, 2f), aggressive, dpLight, apClaw, red);
             // 큰놈: 진짜 큰 큐브(중장갑). 플레이어 크기와 확연히 다름.
-            Monster("MD_Melee_LargeHeavy", "큰놈", MonsterTag.Melee | MonsterTag.Elite, 4.5f, 1.8f, 60f, false, false, false, MonsterAbility.None, new Vector2(0f, 3f), aggressive, dpHeavy, apClaw, purple, PrimitiveType.Cube);
+            Monster("MD_Melee_LargeHeavy", "큰놈", MonsterTag.Melee | MonsterTag.Elite, 3.5f, 1.8f, 60f, false, false, false, MonsterAbility.None, new Vector2(0f, 3f), aggressive, dpHeavy, apClaw, purple, PrimitiveType.Cube);
 
             // --- 원거리 ---
             Monster("MD_Ranged_Small", "작은놈(원거리)", MonsterTag.Ranged, 0.5f, 4.5f, 4f, true, true, true, MonsterAbility.None, new Vector2(8f, 14f), skittish, dpNone, apShot, yellow);
             Monster("MD_Ranged_MediumExplosive", "중간놈 폭발형", MonsterTag.Ranged | MonsterTag.Elite, 1.1f, 2.5f, 40f, false, false, false, MonsterAbility.None, new Vector2(10f, 16f), aggressive, dpHeavy, apExplosive, teal);
-            Monster("MD_Ranged_LargeArtillery", "큰놈 포대형", MonsterTag.Ranged | MonsterTag.Elite, 4.0f, 2.0f, 80f, false, false, false, MonsterAbility.None, new Vector2(12f, 20f), aggressive, dpHeavy, apArtillery, teal, PrimitiveType.Cube);
+            Monster("MD_Ranged_LargeArtillery", "큰놈 포대형", MonsterTag.Ranged | MonsterTag.Elite, 3.0f, 2.0f, 80f, false, false, false, MonsterAbility.None, new Vector2(12f, 20f), aggressive, dpHeavy, apArtillery, teal, PrimitiveType.Cube);
 
             // --- 샘플 스폰 테이블 + 디렉터 프로필 ---
             var st = LoadOrCreate<SpawnTable>("ST_Sample", out bool stNew);

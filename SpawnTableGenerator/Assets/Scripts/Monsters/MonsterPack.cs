@@ -58,8 +58,12 @@ namespace SpawnSystem.Monsters
 
         public List<Monster> members = new List<Monster>();
 
+        /// <summary>사망한 멤버를 어떻게 회수할지(보통 풀 반환). 없으면 파괴.</summary>
+        [System.NonSerialized] public System.Action<GameObject> MemberReleaser;
+
         readonly List<Vector3> _positions = new List<Vector3>();
         readonly List<Monster> _active = new List<Monster>();
+        bool _hadMembers;
 
         static MovementProfile _defaultProfile;
 
@@ -71,6 +75,7 @@ namespace SpawnSystem.Monsters
                 return;
             members.Add(m);
             m.Pack = this;
+            _hadMembers = true;
         }
 
         /// <summary>군집 전체를 목표 지점으로 이동(앵커 길찾기). 에이전트 없으면 무시.</summary>
@@ -89,6 +94,7 @@ namespace SpawnSystem.Monsters
 
         void Update()
         {
+            if (!PruneDead()) return; // 전멸 → 디스폰됨
             float dt = Time.deltaTime;
             if (useFsm)
             {
@@ -96,6 +102,33 @@ namespace SpawnSystem.Monsters
                 DriveAnchor(dt);
             }
             StepMembers(dt);
+        }
+
+        /// <summary>사망/소멸한 멤버를 회수(풀 반환 또는 파괴). 전멸하면 군집을 디스폰하고 false 반환.</summary>
+        bool PruneDead()
+        {
+            for (int i = members.Count - 1; i >= 0; i--)
+            {
+                var m = members[i];
+                bool dead = m == null || (m.Health != null && m.Health.IsDead);
+                if (!dead) continue;
+
+                if (m != null)
+                {
+                    m.Pack = null;
+                    if (MemberReleaser != null) MemberReleaser(m.gameObject);
+                    else DestroySafe(m.gameObject);
+                }
+                members.RemoveAt(i);
+            }
+
+            if (_hadMembers && members.Count == 0)
+            {
+                if (anchor != null) DestroySafe(anchor.gameObject);
+                DestroySafe(gameObject);
+                return false;
+            }
+            return true;
         }
 
         void UpdatePerception(float dt)

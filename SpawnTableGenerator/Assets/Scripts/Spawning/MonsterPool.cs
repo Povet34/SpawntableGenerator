@@ -29,12 +29,13 @@ namespace SpawnSystem.Spawning
             var go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             go.AddComponent<NavMeshAgent>();
             go.AddComponent<Monster>();
+            go.AddComponent<Health>();
             Deactivate(go);
             return go;
         }
 
         /// <summary>풀에서 멤버 하나를 꺼내 def 사양으로 재구성하고 navmesh 위에 둔다.</summary>
-        public GameObject Get(Vector3 pos, Transform parent, float diameter, Color color, float moveSpeed)
+        public GameObject Get(Vector3 pos, Transform parent, float diameter, Color color, float moveSpeed, float maxHP, DefenseProfile defense)
         {
             var go = _pool.Get();
 
@@ -50,9 +51,10 @@ namespace SpawnSystem.Spawning
             go.SetActive(true); // NavMeshAgent 가 여기서 navmesh 에 매핑됨(위치가 navmesh 위라야 함)
 
             var ag = go.GetComponent<NavMeshAgent>();
-            ag.radius = Mathf.Min(diameter * 0.5f, 0.6f);
-            ag.height = diameter * 2f;
-            ag.baseOffset = diameter;
+            // NavMeshAgent 치수는 transform.scale(=diameter)로 곱해지므로 로컬값으로 환산.
+            ag.radius = Mathf.Min(diameter * 0.5f, 0.6f) / diameter;
+            ag.height = 2f;
+            ag.baseOffset = 1f;
             ag.speed = moveSpeed;
             ag.acceleration = 9999f;
             ag.angularSpeed = 0f;
@@ -63,7 +65,12 @@ namespace SpawnSystem.Spawning
 
             var m = go.GetComponent<Monster>();
             m.ResetForReuse();
+            m.SetGroundY(p.y); // XZ 평면 고정(스폰 높이)
             m.Mover = new AgentMover(ag);
+
+            var hp = go.GetComponent<Health>();
+            hp.Init(maxHP, defense);
+            m.Health = hp;
             return go;
         }
 
