@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using SpawnSystem.Monsters;
 using UnityEditor;
+using UnityEngine;
 
 namespace SpawnSystem.Tests
 {
@@ -72,6 +73,24 @@ namespace SpawnSystem.Tests
             var d = Load("MD_Ranged_Small");
             Assert.GreaterOrEqual(d.preferredRange.x, 6f, "원거리 키터는 선호 거리가 멀어야");
             Assert.IsTrue(d.canFlee, "원거리 작은놈은 겁이 많아 도망 가능");
+        }
+
+        [Test]
+        public void AllBaseSpeeds_BelowPlayerFullSpeed()
+        {
+            foreach (var n in Roster)
+                Assert.Less(Load(n).moveSpeed, 6f, $"{n} 기본 속도는 플레이어 전력(6)보다 느려야 한다");
+        }
+
+        [Test]
+        public void LargeHeavyMonsters_AreBigCubes()
+        {
+            foreach (var n in new[] { "MD_Melee_LargeHeavy", "MD_Ranged_LargeArtillery" })
+            {
+                var d = Load(n);
+                Assert.AreEqual(PrimitiveType.Cube, d.bodyPrimitive, $"{n} 은 큐브여야 한다");
+                Assert.GreaterOrEqual(d.scale, 4f, $"{n} 은 진짜 커야 한다(>=4m)");
+            }
         }
     }
 }

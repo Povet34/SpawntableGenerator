@@ -46,17 +46,18 @@ namespace SpawnSystem.EditorTools
             var purple = new Color(0.50f, 0.15f, 0.50f);
             var teal = new Color(0.25f, 0.65f, 0.70f);
 
-            // --- 근접 ---
-            Monster("MD_Melee_Small", "작은놈", MonsterTag.Swarm | MonsterTag.Melee, 0.5f, 6f, 4f, true, false, true, MonsterAbility.None, new Vector2(0f, 2f), skittish, dpNone, apClaw, orange);
-            Monster("MD_Melee_SmallJumper", "작은놈 점프형", MonsterTag.Swarm | MonsterTag.Melee, 0.5f, 6f, 5f, true, false, true, MonsterAbility.Leap, new Vector2(0f, 2f), skittish, dpNone, apLeap, orange);
-            Monster("MD_Melee_Medium", "중간놈", MonsterTag.Melee, 1.0f, 4f, 12f, false, false, true, MonsterAbility.None, new Vector2(0f, 2f), aggressive, dpLight, apClaw, red);
-            Monster("MD_Melee_MediumBurrower", "중간놈 잠복형", MonsterTag.Melee, 1.0f, 4f, 12f, false, false, true, MonsterAbility.Burrow, new Vector2(0f, 2f), aggressive, dpLight, apClaw, red);
-            Monster("MD_Melee_LargeHeavy", "큰놈", MonsterTag.Melee | MonsterTag.Elite, 1.6f, 2.0f, 60f, false, false, false, MonsterAbility.None, new Vector2(0f, 2f), aggressive, dpHeavy, apClaw, purple);
+            // --- 근접 --- (속도는 모두 플레이어 전력(6)보다 느림; 점프형의 도약은 base 가 아닌 공격 버스트)
+            Monster("MD_Melee_Small", "작은놈", MonsterTag.Swarm | MonsterTag.Melee, 0.5f, 5.0f, 4f, true, false, true, MonsterAbility.None, new Vector2(0f, 2f), skittish, dpNone, apClaw, orange);
+            Monster("MD_Melee_SmallJumper", "작은놈 점프형", MonsterTag.Swarm | MonsterTag.Melee, 0.5f, 5.0f, 5f, true, false, true, MonsterAbility.Leap, new Vector2(0f, 2f), skittish, dpNone, apLeap, orange);
+            Monster("MD_Melee_Medium", "중간놈", MonsterTag.Melee, 1.0f, 4.0f, 12f, false, false, true, MonsterAbility.None, new Vector2(0f, 2f), aggressive, dpLight, apClaw, red);
+            Monster("MD_Melee_MediumBurrower", "중간놈 잠복형", MonsterTag.Melee, 1.0f, 4.0f, 12f, false, false, true, MonsterAbility.Burrow, new Vector2(0f, 2f), aggressive, dpLight, apClaw, red);
+            // 큰놈: 진짜 큰 큐브(중장갑). 플레이어 크기와 확연히 다름.
+            Monster("MD_Melee_LargeHeavy", "큰놈", MonsterTag.Melee | MonsterTag.Elite, 4.5f, 1.8f, 60f, false, false, false, MonsterAbility.None, new Vector2(0f, 3f), aggressive, dpHeavy, apClaw, purple, PrimitiveType.Cube);
 
             // --- 원거리 ---
-            Monster("MD_Ranged_Small", "작은놈(원거리)", MonsterTag.Ranged, 0.5f, 5f, 4f, true, true, true, MonsterAbility.None, new Vector2(8f, 14f), skittish, dpNone, apShot, yellow);
+            Monster("MD_Ranged_Small", "작은놈(원거리)", MonsterTag.Ranged, 0.5f, 4.5f, 4f, true, true, true, MonsterAbility.None, new Vector2(8f, 14f), skittish, dpNone, apShot, yellow);
             Monster("MD_Ranged_MediumExplosive", "중간놈 폭발형", MonsterTag.Ranged | MonsterTag.Elite, 1.1f, 2.5f, 40f, false, false, false, MonsterAbility.None, new Vector2(10f, 16f), aggressive, dpHeavy, apExplosive, teal);
-            Monster("MD_Ranged_LargeArtillery", "큰놈 포대형", MonsterTag.Ranged | MonsterTag.Elite, 1.8f, 2.0f, 80f, false, false, false, MonsterAbility.None, new Vector2(12f, 20f), aggressive, dpHeavy, apArtillery, teal);
+            Monster("MD_Ranged_LargeArtillery", "큰놈 포대형", MonsterTag.Ranged | MonsterTag.Elite, 4.0f, 2.0f, 80f, false, false, false, MonsterAbility.None, new Vector2(12f, 20f), aggressive, dpHeavy, apArtillery, teal, PrimitiveType.Cube);
 
             // --- 샘플 스폰 테이블 + 디렉터 프로필 ---
             var st = LoadOrCreate<SpawnTable>("ST_Sample", out bool stNew);
@@ -114,12 +115,14 @@ namespace SpawnSystem.EditorTools
 
         static void Monster(string id, string display, MonsterTag tags, float scale, float speed, float hp,
             bool canStrafe, bool canBackstep, bool canFlee, MonsterAbility abilities, Vector2 preferredRange,
-            MovementProfile move, DefenseProfile def, AttackProfile atk, Color color)
+            MovementProfile move, DefenseProfile def, AttackProfile atk, Color color,
+            PrimitiveType body = PrimitiveType.Capsule)
         {
             var d = LoadOrCreate<MonsterDef>(id, out bool isNew);
             d.id = id;
             d.displayName = display;
             d.tags = tags;
+            d.bodyPrimitive = body;
             d.scale = scale;
             d.moveSpeed = speed;
             d.maxHP = hp;

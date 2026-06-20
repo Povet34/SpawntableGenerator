@@ -15,16 +15,16 @@ MonoBehaviour:
   id: MD_Melee_LargeHeavy
   displayName: "\uD070\uB188"
   tags: 5
-  bodyPrimitive: 1
+  bodyPrimitive: 3
   sizeClass: 2
-  scale: 1.6
+  scale: 4.5
   color: {r: 0.5, g: 0.15, b: 0.5, a: 1}
-  moveSpeed: 2
+  moveSpeed: 1.8
   turnSpeedDeg: 360
   canStrafe: 0
   canBackstep: 0
   maxHP: 60
-  preferredRange: {x: 0, y: 2}
+  preferredRange: {x: 0, y: 3}
   defense: {fileID: 11400000, guid: ffb00ab086b346a4eabdef3705b0d2bf, type: 2}
   attack: {fileID: 11400000, guid: 112e2b5d0a72a624d9672f7f524c8954, type: 2}
   abilities: 0

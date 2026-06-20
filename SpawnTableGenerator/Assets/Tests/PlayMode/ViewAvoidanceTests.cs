@@ -34,6 +34,7 @@ namespace SpawnSystem.Tests
             anchorGo.transform.position = Vector3.zero;
             pack.anchor = anchorGo.transform;
             pack.player = playerGo.transform;
+            pack.useFsm = false; // 시야 회피는 교전 행동 — FSM 끄고 항상 교전으로 검증
             pack.engageRange = 20f;
             pack.preferredRange = new Vector2(3f, 6f);
 

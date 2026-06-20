@@ -31,6 +31,31 @@ namespace SpawnSystem.Monsters
         public float engageRange = 12f;
         [Range(4, 24)] public int dirCount = 12;
 
+        [Header("인지 (FSM, §5)")]
+        [Tooltip("끄면 항상 교전(시야 무시) — 이동 단위 테스트용")]
+        public bool useFsm = true;
+        [Tooltip("멤버 시야 콘 각도(도)")]
+        public float sightConeAngle = 100f;
+        [Tooltip("멤버 시야 사거리")]
+        public float sightRange = 14f;
+        [Tooltip("이 거리 안이면 방향 무관 발각(근거리 직접 시야)")]
+        public float closeSightRange = 4f;
+        public float investigateTimeout = 5f;
+        public float loseSightTime = 3f;
+
+        public PackState State { get; private set; } = PackState.Patrol;
+
+        Vector3 _knownPlayerPos;
+        Vector3 _lastStimulus;
+        Vector3 _patrolTarget;
+        Vector3 _patrolDir;
+        bool _patrolInit;
+        float _timeInState;
+        float _timeSinceSight = 999f;
+        float _anchorRepath;
+        bool _pendingNoise;
+        Vector3 _noisePos;
+
         public List<Monster> members = new List<Monster>();
 
         readonly List<Vector3> _positions = new List<Vector3>();
@@ -55,10 +80,126 @@ namespace SpawnSystem.Monsters
                 anchorAgent.SetDestination(worldPos);
         }
 
+        /// <summary>소음 자극 입력(플레이어 고속 이동/공격 등). 다음 인지 틱에서 경계 트리거.</summary>
+        public void HearNoise(Vector3 worldPos)
+        {
+            _pendingNoise = true;
+            _noisePos = worldPos;
+        }
+
         void Update()
         {
-            StepMembers(Time.deltaTime);
+            float dt = Time.deltaTime;
+            if (useFsm)
+            {
+                UpdatePerception(dt);
+                DriveAnchor(dt);
+            }
+            StepMembers(dt);
         }
+
+        void UpdatePerception(float dt)
+        {
+            _timeInState += dt;
+            _timeSinceSight += dt;
+
+            bool sight = SenseSight();
+            if (sight)
+            {
+                _knownPlayerPos = player.position;
+                _timeSinceSight = 0f;
+            }
+
+            var senses = new PackSenses
+            {
+                SightContact = sight,
+                NoiseHeard = _pendingNoise,
+                TimeInState = _timeInState,
+                TimeSinceSight = _timeSinceSight,
+            };
+            var perception = new PackPerception { investigateTimeout = investigateTimeout, loseSightTime = loseSightTime };
+            var next = PackFsm.Next(State, senses, perception);
+
+            if (next != State)
+            {
+                if (next == PackState.Alert)               // 조사 지점: 소음원 또는 마지막 목격 위치
+                    _lastStimulus = _pendingNoise ? _noisePos : _knownPlayerPos;
+                State = next;
+                _timeInState = 0f;
+            }
+            _pendingNoise = false;
+        }
+
+        /// <summary>한 멤버라도 플레이어를 보면 전원 발각(공유 상태). 시야 = 콘+사거리+LoS, 근거리는 방향 무관.</summary>
+        bool SenseSight()
+        {
+            if (player == null) return false;
+            Vector3 pp = player.position;
+            for (int i = 0; i < members.Count; i++)
+            {
+                var m = members[i];
+                if (m == null) continue;
+                Vector3 mp = m.transform.position;
+                float d = Vector3.Distance(Flat(mp), Flat(pp));
+                if (d > sightRange) continue;
+
+                bool inCone = ViewPressure.Cone(mp, m.transform.forward, pp, sightConeAngle, sightRange) > 0f;
+                bool close = d <= closeSightRange;
+                if (!(inCone || close)) continue;
+
+                if (!NavMesh.Raycast(mp, pp, out _, NavMesh.AllAreas)) // 벽에 안 막히면 보임
+                    return true;
+            }
+            return false;
+        }
+
+        void DriveAnchor(float dt)
+        {
+            if (!_patrolInit)
+            {
+                _patrolDir = player != null ? Flat(player.position - AnchorPosition) : Flat(transform.forward);
+                if (_patrolDir.sqrMagnitude < 1e-4f) _patrolDir = Vector3.forward;
+                _patrolDir.Normalize();
+                _patrolTarget = NextPatrolPoint();
+                _patrolInit = true;
+            }
+
+            _anchorRepath -= dt;
+            if (_anchorRepath > 0f) return;
+            _anchorRepath = 0.5f;
+
+            Vector3 target;
+            switch (State)
+            {
+                case PackState.Engage:
+                    target = _knownPlayerPos;
+                    break;
+                case PackState.Alert:
+                    target = _lastStimulus;
+                    break;
+                default: // 순찰 — 목표에 닿으면 계속 전진(가만히 안 있음). 플레이어 멀면 단순(앵커만 길찾기).
+                    if (Flat(AnchorPosition - _patrolTarget).magnitude < 3f)
+                        _patrolTarget = NextPatrolPoint();
+                    target = _patrolTarget;
+                    break;
+            }
+            MoveTo(target);
+        }
+
+        /// <summary>스폰 방향(+약간의 흔들림)으로 계속 나아갈 다음 순찰 지점.</summary>
+        Vector3 NextPatrolPoint()
+        {
+            Vector2 jit = Random.insideUnitCircle * 0.4f;
+            Vector3 dir = _patrolDir + new Vector3(jit.x, 0f, jit.y);
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 1e-4f) dir = Vector3.forward;
+            return SnapNav(AnchorPosition + dir.normalized * 12f);
+        }
+
+        static Vector3 Flat(Vector3 v) { v.y = 0f; return v; }
+
+        static Vector3 SnapNav(Vector3 p)
+            => NavMesh.SamplePosition(p, out var hit, 6f, NavMesh.AllAreas) ? hit.position : p;
 
         public void StepMembers(float dt)
         {
@@ -74,8 +215,20 @@ namespace SpawnSystem.Monsters
             if (_active.Count == 0)
                 return;
 
-            Vector3 playerPos = player != null ? player.position : AnchorPosition;
-            Vector3 playerForward = player != null ? player.forward : transform.forward;
+            // 교전(또는 FSM 비활성)이면 플레이어를 쫓고, 순찰/경계면 앵커에 응집(플레이어 모름 → 시야압박 없음).
+            bool engaged = !useFsm || State == PackState.Engage;
+            Vector3 playerPos;
+            Vector3 playerForward;
+            if (engaged)
+            {
+                playerPos = useFsm ? _knownPlayerPos : (player != null ? player.position : AnchorPosition);
+                playerForward = player != null ? player.forward : Vector3.zero;
+            }
+            else
+            {
+                playerPos = AnchorPosition;
+                playerForward = Vector3.zero;
+            }
 
             var ctx = new SteerContext(
                 playerPos, playerForward,

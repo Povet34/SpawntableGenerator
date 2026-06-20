@@ -15,9 +15,9 @@ MonoBehaviour:
   id: MD_Ranged_LargeArtillery
   displayName: "\uD070\uB188 \uD3EC\uB300\uD615"
   tags: 6
-  bodyPrimitive: 1
+  bodyPrimitive: 3
   sizeClass: 2
-  scale: 1.8
+  scale: 4
   color: {r: 0.25, g: 0.65, b: 0.7, a: 1}
   moveSpeed: 2
   turnSpeedDeg: 360

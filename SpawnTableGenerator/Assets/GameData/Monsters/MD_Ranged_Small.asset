@@ -19,7 +19,7 @@ MonoBehaviour:
   sizeClass: 0
   scale: 0.5
   color: {r: 0.9, g: 0.8, b: 0.2, a: 1}
-  moveSpeed: 5
+  moveSpeed: 4.5
   turnSpeedDeg: 360
   canStrafe: 1
   canBackstep: 1

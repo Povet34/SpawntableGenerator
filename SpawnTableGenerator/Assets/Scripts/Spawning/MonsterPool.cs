@@ -50,7 +50,7 @@ namespace SpawnSystem.Spawning
             go.SetActive(true); // NavMeshAgent 가 여기서 navmesh 에 매핑됨(위치가 navmesh 위라야 함)
 
             var ag = go.GetComponent<NavMeshAgent>();
-            ag.radius = diameter * 0.5f;
+            ag.radius = Mathf.Min(diameter * 0.5f, 0.6f);
             ag.height = diameter * 2f;
             ag.baseOffset = diameter;
             ag.speed = moveSpeed;

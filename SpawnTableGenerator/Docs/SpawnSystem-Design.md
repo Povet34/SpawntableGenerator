@@ -131,7 +131,10 @@ spawnInterval = lerp(최대간격, 최소간격, intensity)   // 최소간격으
 
 1. ✅ 테스트 씬 스켈레톤 — 평면 navmesh + 큐브 벽 + 클릭 이동 플레이어(캡슐). MOBA식 우클릭 이동(홀드 추적), 벽 우회/벽면 밀착, 시네머신 탑다운 카메라까지.
 2. ✅ `MonsterPack` 가상 앵커 + boids 멤버 — 응집/분리 순수 로직(`BoidsSteering`) TDD, 군집 수렴 PlayMode 검증.
-3. 인지/상태머신(FSM) — 시야·소음·거리, 군집 공유 상태
+3. ✅ 인지/상태머신(FSM) — `PackFsm`(순수, 순찰→경계→교전 §5) + MonsterPack 통합: 군집 공유 시야
+   감지(한 멤버라도 보면 전원 발각, 콘+사거리+근거리+LoS), 상태별 행동(순찰=스폰방향 전진/앵커 응집,
+   경계=마지막 자극 조사, 교전=플레이어 추격+시야회피). `HearNoise` 훅. `useFsm` 플래그(이동 테스트용).
+   **남음: 플레이어 소음 발생(고속이동/공격) 연결, 증원(breach) 호출.**
 4. ✅ `SpawnDirector` + `SpawnTable`(SO) + 긴장도/예산 + **풀링** — TensionCalculator·SpawnSelector·Pool 순수 로직 + DirectorProfile/SpawnTable/SpawnEntry SO + PackFactory + `MonsterPool`(디스폰 시 재사용, MonsterPack.Despawn). 씬에 SpawnDirector 배치. (실제 재사용 이득은 디스폰 트리거=전투/사망 생기면 발휘.)
 5. 목표 시스템 + 엔드게임 `PlayerRing` 스폰
 6. 에디터 제너레이터 툴 + 디버그 HUD/기즈모
